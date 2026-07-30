@@ -1,12 +1,17 @@
 package dev.radn.rvxmobile
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -20,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.ui.DownloadStatus
@@ -55,6 +61,24 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     
     var showPermissionDialog by remember { mutableStateOf(false) }
     var pendingApkToDownload by remember { mutableStateOf<Pair<String, ApkInfo>?>(null) }
+
+    // Register Notification Permission Launcher (for Android 13+)
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            pendingApkToDownload?.let { (patcherName, apk) ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                    !context.packageManager.canRequestPackageInstalls()
+                ) {
+                    showPermissionDialog = true
+                } else {
+                    val label = "${patcherName} - ${apk.label}"
+                    viewModel.enqueueDownload(context, label, apk)
+                    pendingApkToDownload = null
+                }
+            }
+        }
+    )
 
     // Listen to ViewModel install events
     LaunchedEffect(viewModel) {
@@ -146,14 +170,24 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 onSearchQueryChange = { searchQuery = it },
                                 deviceAbi = viewModel.deviceAbi,
                                 onDownloadClick = { patcherName, apk ->
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                                        !context.packageManager.canRequestPackageInstalls()
+                                    pendingApkToDownload = Pair(patcherName, apk)
+                                    
+                                    // Check Post Notifications Permission on Android 13+ (API 33+)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                                     ) {
-                                        pendingApkToDownload = Pair(patcherName, apk)
-                                        showPermissionDialog = true
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     } else {
-                                        val label = "${patcherName} - ${apk.label}"
-                                        viewModel.enqueueDownload(context, label, apk)
+                                        // Permission already granted or older system. Check package installation permission.
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                            !context.packageManager.canRequestPackageInstalls()
+                                        ) {
+                                            showPermissionDialog = true
+                                        } else {
+                                            val label = "${patcherName} - ${apk.label}"
+                                            viewModel.enqueueDownload(context, label, apk)
+                                            pendingApkToDownload = null
+                                        }
                                     }
                                 }
                             )

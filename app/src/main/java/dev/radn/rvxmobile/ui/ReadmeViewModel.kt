@@ -5,25 +5,23 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.ReadmeParser
+import dev.radn.rvxmobile.data.DownloadQueueRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
-import java.io.FileOutputStream
 
 sealed interface UiState {
     object Loading : UiState
@@ -53,16 +51,11 @@ class ReadmeViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState
 
-    // Download Queue State Flow
-    private val _downloadQueue = MutableStateFlow<List<DownloadTask>>(emptyList())
-    val downloadQueue: StateFlow<List<DownloadTask>> = _downloadQueue
+    // Expose download queue flow from the centralized repository
+    val downloadQueue: StateFlow<List<DownloadTask>> = DownloadQueueRepository.downloadQueue
 
-    // Install prompt Shared Flow (emits File when ready for install)
-    private val _installEvent = MutableSharedFlow<File>()
-    val installEvent: SharedFlow<File> = _installEvent
-
-    private val queueMutex = Mutex()
-    private var isProcessingQueue = false
+    // Expose install prompt flow from the centralized repository
+    val installEvent: SharedFlow<File> = DownloadQueueRepository.installEvents
 
     val deviceAbi: String by lazy {
         Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
@@ -112,121 +105,34 @@ class ReadmeViewModel : ViewModel() {
         val isFresh = apkFile.exists() && (System.currentTimeMillis() - apkFile.lastModified() < fiveMinutesMs)
 
         if (isFresh) {
-            // Fresh cached version exists, skip downloading
+            // Fresh cache exists, skip queueing/downloading
             viewModelScope.launch {
-                val existingTask = _downloadQueue.value.firstOrNull { it.apkUrl == absoluteUrl }
-                if (existingTask == null) {
-                    val completedTask = DownloadTask(
-                        apkUrl = absoluteUrl,
-                        label = label,
-                        progress = 1.0f,
-                        status = DownloadStatus.COMPLETED
-                    )
-                    _downloadQueue.value = _downloadQueue.value + completedTask
-                } else {
-                    updateTaskStatus(absoluteUrl, DownloadStatus.COMPLETED, 1.0f)
-                }
+                val completedTask = DownloadTask(
+                    apkUrl = absoluteUrl,
+                    label = label,
+                    progress = 1.0f,
+                    status = DownloadStatus.COMPLETED
+                )
+                DownloadQueueRepository.addTask(completedTask)
+                DownloadQueueRepository.updateStatus(absoluteUrl, DownloadStatus.COMPLETED, 1.0f)
                 Toast.makeText(context, "Using fresh cached copy", Toast.LENGTH_SHORT).show()
-                _installEvent.emit(apkFile)
+                DownloadQueueRepository.installEvents.emit(apkFile)
             }
             return
         }
 
-        // Add or update task in queue
-        val existingTask = _downloadQueue.value.firstOrNull { it.apkUrl == absoluteUrl }
-        if (existingTask == null) {
-            val newTask = DownloadTask(
-                apkUrl = absoluteUrl,
-                label = label,
-                progress = 0f,
-                status = DownloadStatus.QUEUED
-            )
-            _downloadQueue.value = _downloadQueue.value + newTask
-            Toast.makeText(context, "Added to download queue", Toast.LENGTH_SHORT).show()
-        } else if (existingTask.status == DownloadStatus.FAILED || existingTask.status == DownloadStatus.COMPLETED) {
-            updateTaskStatus(absoluteUrl, DownloadStatus.QUEUED, 0f)
-            Toast.makeText(context, "Retrying download...", Toast.LENGTH_SHORT).show()
-        }
+        // Add task to repository queue
+        val task = DownloadTask(
+            apkUrl = absoluteUrl,
+            label = label,
+            progress = 0f,
+            status = DownloadStatus.QUEUED
+        )
+        DownloadQueueRepository.addTask(task)
 
-        startQueueProcessing(context.applicationContext)
-    }
-
-    private fun startQueueProcessing(context: Context) {
-        viewModelScope.launch {
-            queueMutex.withLock {
-                if (isProcessingQueue) return@withLock
-                isProcessingQueue = true
-                
-                viewModelScope.launch(Dispatchers.IO) {
-                    try {
-                        while (true) {
-                            val nextTask = _downloadQueue.value.firstOrNull { it.status == DownloadStatus.QUEUED }
-                            if (nextTask == null) {
-                                break
-                            }
-                            processDownloadTask(context, nextTask)
-                        }
-                    } finally {
-                        isProcessingQueue = false
-                    }
-                }
-            }
-        }
-    }
-
-    private suspend fun processDownloadTask(context: Context, task: DownloadTask) {
-        updateTaskStatus(task.apkUrl, DownloadStatus.DOWNLOADING, 0f)
-        
-        try {
-            val request = Request.Builder().url(task.apkUrl).build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) throw Exception("Server returned code ${response.code}")
-            
-            val body = response.body ?: throw Exception("Empty response body")
-            val contentLength = body.contentLength()
-            
-            val dir = File(context.cacheDir, "apks")
-            if (!dir.exists()) dir.mkdirs()
-            
-            val apkFile = File(dir, task.apkUrl.substringAfterLast("/"))
-            
-            body.byteStream().use { input ->
-                FileOutputStream(apkFile).use { output ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    var totalBytesRead = 0L
-                    
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalBytesRead += bytesRead
-                        if (contentLength > 0) {
-                            val progress = totalBytesRead.toFloat() / contentLength
-                            updateTaskStatus(task.apkUrl, DownloadStatus.DOWNLOADING, progress)
-                        } else {
-                            updateTaskStatus(task.apkUrl, DownloadStatus.DOWNLOADING, 0.5f)
-                        }
-                    }
-                }
-            }
-            
-            // Set timestamp to now, indicating cache freshness
-            apkFile.setLastModified(System.currentTimeMillis())
-
-            updateTaskStatus(task.apkUrl, DownloadStatus.COMPLETED, 1.0f)
-            _installEvent.emit(apkFile)
-        } catch (e: Exception) {
-            updateTaskStatus(task.apkUrl, DownloadStatus.FAILED, 0f, e.localizedMessage ?: "Download failed")
-        }
-    }
-
-    private fun updateTaskStatus(apkUrl: String, status: DownloadStatus, progress: Float = 0f, errorMsg: String? = null) {
-        _downloadQueue.value = _downloadQueue.value.map {
-            if (it.apkUrl == apkUrl) {
-                it.copy(status = status, progress = progress, errorMsg = errorMsg, timestamp = System.currentTimeMillis())
-            } else {
-                it
-            }
-        }
+        // Start Foreground Download Service
+        val serviceIntent = Intent(context, DownloadService::class.java)
+        ContextCompat.startForegroundService(context, serviceIntent)
     }
 
     fun installCachedFile(context: Context, task: DownloadTask) {
@@ -236,9 +142,8 @@ class ReadmeViewModel : ViewModel() {
         if (file.exists()) {
             installApk(context, file)
         } else {
-            // Redownload
-            updateTaskStatus(task.apkUrl, DownloadStatus.QUEUED, 0f)
-            startQueueProcessing(context.applicationContext)
+            // Re-download
+            enqueueDownload(context, task.label, ApkInfo(label = task.label.substringAfter(" - "), url = task.apkUrl, isBeta = false, isLite = false, isOutdated = false))
         }
     }
 
@@ -254,9 +159,6 @@ class ReadmeViewModel : ViewModel() {
     }
 
     fun clearQueueHistory() {
-        // Clear tasks that are either completed or failed
-        _downloadQueue.value = _downloadQueue.value.filter {
-            it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.DOWNLOADING
-        }
+        DownloadQueueRepository.clearHistory()
     }
 }
