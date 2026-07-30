@@ -3,21 +3,45 @@ package dev.radn.rvxmobile
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.*
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.ui.DownloadStatus
@@ -66,14 +91,14 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     // Register Notification Permission Launcher (for Android 13+)
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
+        onResult = { _ ->
             pendingApkToDownload?.let { (patcherName, apk) ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                     !context.packageManager.canRequestPackageInstalls()
                 ) {
                     showPermissionDialog = true
                 } else {
-                    val label = "${patcherName} - ${apk.label}"
+                    val label = "$patcherName - ${apk.label}"
                     viewModel.enqueueDownload(context, label, apk)
                     pendingApkToDownload = null
                 }
@@ -128,7 +153,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                     downloadQueue.count { it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.DOWNLOADING }
                 }
                 
-                Screen.values().forEach { screen ->
+                Screen.entries.forEach { screen ->
                     NavigationBarItem(
                         selected = currentScreen == screen,
                         onClick = { currentScreen = screen },
@@ -187,7 +212,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                         ) {
                                             showPermissionDialog = true
                                         } else {
-                                            val label = "${patcherName} - ${apk.label}"
+                                            val label = "$patcherName - ${apk.label}"
                                             viewModel.enqueueDownload(context, label, apk)
                                             pendingApkToDownload = null
                                         }
@@ -266,12 +291,12 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                         showPermissionDialog = false
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                                data = Uri.parse("package:${context.packageName}")
+                                data = "package:${context.packageName}".toUri()
                             }
                             context.startActivity(intent)
                             
                             pendingApkToDownload?.let { (patcherName, apk) ->
-                                val label = "${patcherName} - ${apk.label}"
+                                val label = "$patcherName - ${apk.label}"
                                 viewModel.enqueueDownload(context, label, apk)
                             }
                             pendingApkToDownload = null

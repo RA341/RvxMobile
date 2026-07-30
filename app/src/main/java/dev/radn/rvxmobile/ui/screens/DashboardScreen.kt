@@ -24,7 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -165,6 +168,8 @@ fun AppInfoCard(
     onPlayStoreClick: (String) -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
+    var selectedPatcherIndex by remember(app.patchers) { mutableStateOf(0) }
+    val selectedPatcher = app.patchers.getOrNull(selectedPatcherIndex) ?: app.patchers.firstOrNull()
 
     Card(
         modifier = Modifier
@@ -222,13 +227,41 @@ fun AppInfoCard(
                             fontSize = 14.sp
                         )
                     } else {
-                        app.patchers.forEach { patcher ->
+                        if (app.patchers.size > 1) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
+                            ) {
+                                itemsIndexed(app.patchers) { index, patcher ->
+                                    val isSelected = index == selectedPatcherIndex
+                                    Box(
+                                        modifier = Modifier
+                                            .background(
+                                                color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                shape = CircleShape
+                                            )
+                                            .clickable { selectedPatcherIndex = index }
+                                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = patcher.name,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        selectedPatcher?.let { patcher ->
                             PatcherSection(
                                 patcher = patcher,
                                 deviceAbi = deviceAbi,
                                 onDownloadClick = { apk -> onDownloadClick(patcher.name, apk) }
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
                         }
                     }
                 }

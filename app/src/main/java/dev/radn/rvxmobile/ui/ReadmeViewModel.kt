@@ -2,17 +2,16 @@ package dev.radn.rvxmobile.ui
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.ApkInfo
-import dev.radn.rvxmobile.data.ReadmeParser
+import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.DownloadQueueRepository
+import dev.radn.rvxmobile.data.ReadmeParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -22,6 +21,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.Locale
 
 sealed interface UiState {
     object Loading : UiState
@@ -168,8 +168,8 @@ class ReadmeViewModel : ViewModel() {
         if (!cacheDir.exists() || !cacheDir.isDirectory) return "0 B"
         val bytes = cacheDir.listFiles()?.sumOf { it.length() } ?: 0L
         return when {
-            bytes >= 1024 * 1024 -> String.format("%.2f MB", bytes.toDouble() / (1024 * 1024))
-            bytes >= 1024 -> String.format("%.2f KB", bytes.toDouble() / 1024)
+            bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.2f MB", bytes.toDouble() / (1024 * 1024))
+            bytes >= 1024 -> String.format(Locale.getDefault(), "%.2f KB", bytes.toDouble() / 1024)
             else -> "$bytes B"
         }
     }
