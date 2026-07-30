@@ -80,7 +80,7 @@ fun DashboardScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -110,7 +110,7 @@ fun DashboardScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 ),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(20.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -170,7 +170,9 @@ fun AppInfoCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { isExpanded = !isExpanded },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(28.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -274,7 +276,7 @@ fun PatcherSection(
             .fillMaxWidth()
             .background(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(16.dp)
             )
             .padding(12.dp)
     ) {
@@ -382,7 +384,7 @@ fun ApkGroupDropdown(
                 modifier = Modifier
                     .menuAnchor()
                     .fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -418,7 +420,7 @@ fun ApkGroupDropdown(
                                         if (apk.isLite) {
                                             Box(
                                                 modifier = Modifier
-                                                    .background(Color(0xFFE8F5E9), shape = RoundedCornerShape(3.dp))
+                                                    .background(Color(0xFFE8F5E9), shape = RoundedCornerShape(8.dp))
                                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                                             ) {
                                                 Text("Lite", fontSize = 8.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
@@ -427,7 +429,7 @@ fun ApkGroupDropdown(
                                         if (apk.isOutdated) {
                                             Box(
                                                 modifier = Modifier
-                                                    .background(Color(0xFFFFEBEE), shape = RoundedCornerShape(3.dp))
+                                                    .background(Color(0xFFFFEBEE), shape = RoundedCornerShape(8.dp))
                                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                                             ) {
                                                 Text("Outdated", fontSize = 8.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
@@ -440,7 +442,7 @@ fun ApkGroupDropdown(
                                         modifier = Modifier
                                             .background(
                                                 color = MaterialTheme.colorScheme.primaryContainer,
-                                                shape = RoundedCornerShape(4.dp)
+                                                shape = RoundedCornerShape(8.dp)
                                             )
                                             .padding(horizontal = 4.dp, vertical = 2.dp)
                                     ) {
@@ -470,7 +472,7 @@ fun ApkGroupDropdown(
             
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(6.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
@@ -507,7 +509,7 @@ fun ApkGroupDropdown(
                         onClick = { onDownloadClick(apk) },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         modifier = Modifier.height(32.dp),
-                        shape = RoundedCornerShape(6.dp)
+                        shape = androidx.compose.foundation.shape.CircleShape
                     ) {
                         Icon(
                             imageVector = Icons.Default.Download,

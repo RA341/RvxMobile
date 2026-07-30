@@ -52,7 +52,7 @@ fun DownloadsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -138,8 +138,9 @@ fun DownloadTaskCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -174,7 +175,7 @@ fun DownloadTaskCard(
                                 DownloadStatus.COMPLETED -> Color(0xFFE8F5E9)
                                 DownloadStatus.FAILED -> Color(0xFFFFEBEE)
                             },
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(8.dp)
                         )
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
@@ -258,7 +259,7 @@ fun DownloadTaskCard(
                             onClick = { onInstallClick(task) },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                             modifier = Modifier.height(28.dp),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = androidx.compose.foundation.shape.CircleShape
                         ) {
                             Text("Install", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }

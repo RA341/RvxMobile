@@ -35,6 +35,7 @@ import dev.radn.rvxmobile.ui.navigation.Screen
 import dev.radn.rvxmobile.ui.screens.DashboardScreen
 import dev.radn.rvxmobile.ui.screens.DownloadsScreen
 import dev.radn.rvxmobile.ui.screens.ReadmeWebViewScreen
+import dev.radn.rvxmobile.ui.screens.SettingsScreen
 import dev.radn.rvxmobile.ui.theme.RvxMobileTheme
 
 class MainActivity : ComponentActivity() {
@@ -115,12 +116,14 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp)
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
                 )
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+            ) {
                 val activeDownloadsCount = remember(downloadQueue) {
                     downloadQueue.count { it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.DOWNLOADING }
                 }
@@ -209,6 +212,9 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                     viewModel.enqueueDownload(context, task.label, apk)
                                 }
                             )
+                        }
+                        Screen.SETTINGS -> {
+                            SettingsScreen(viewModel = viewModel)
                         }
                     }
                 }

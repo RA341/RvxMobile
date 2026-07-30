@@ -161,4 +161,24 @@ class ReadmeViewModel : ViewModel() {
     fun clearQueueHistory() {
         DownloadQueueRepository.clearHistory()
     }
+
+    // Get total size of APK cache files
+    fun getCacheSize(context: Context): String {
+        val cacheDir = File(context.cacheDir, "apks")
+        if (!cacheDir.exists() || !cacheDir.isDirectory) return "0 B"
+        val bytes = cacheDir.listFiles()?.sumOf { it.length() } ?: 0L
+        return when {
+            bytes >= 1024 * 1024 -> String.format("%.2f MB", bytes.toDouble() / (1024 * 1024))
+            bytes >= 1024 -> String.format("%.2f KB", bytes.toDouble() / 1024)
+            else -> "$bytes B"
+        }
+    }
+
+    // Clear APK cache files
+    fun clearCache(context: Context) {
+        val cacheDir = File(context.cacheDir, "apks")
+        if (cacheDir.exists() && cacheDir.isDirectory) {
+            cacheDir.listFiles()?.forEach { it.delete() }
+        }
+    }
 }

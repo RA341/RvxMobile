@@ -1,6 +1,26 @@
+import java.lang.ProcessBuilder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+val gitHash = if (!System.getenv("GITHUB_SHA").isNullOrBlank()) {
+    System.getenv("GITHUB_SHA").take(7)
+} else if (file("${project.rootDir}/.git").exists()) {
+    providers.exec {
+        commandLine("git", "rev-parse", "--short", "HEAD")
+    }.standardOutput.asText.map { it.trim() }.getOrElse("unknown")
+} else {
+    "unknown"
+}
+
+val buildDate: String by lazy {
+    val df = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    df.format(Date())
 }
 
 android {
@@ -19,6 +39,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "GIT_HASH", "\"$gitHash\"")
+        buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 
     buildTypes {
@@ -34,6 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
