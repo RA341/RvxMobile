@@ -1,4 +1,4 @@
-name: Android CI Build
+name: Android CI & Release
 
 on:
   push:
@@ -7,9 +7,12 @@ on:
     branches: [ "main", "master", "develop" ]
   workflow_dispatch: # Allows manual trigger
 
+permissions:
+  contents: write # Needed to create releases and upload assets
+
 jobs:
   build:
-    name: Build Android App
+    name: Build & Release Android App
     runs-on: ubuntu-latest
 
     steps:
@@ -28,11 +31,43 @@ jobs:
       - name: Grant Execute Permission to Gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --no-daemon
 
-      - name: Upload Debug APK Artifact
+      - name: Decode Keystore
+        run: |
+          if [ -z "${{ secrets.RELEASE_KEYSTORE }}" ]; then
+            echo "[-] Error: RELEASE_KEYSTORE repository secret is not set!"
+            exit 1
+          fi
+          echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > release.keystore
+
+      - name: Sign Release APK
+        run: |
+          # Find latest apksigner inside Android Home build-tools and sign the APK
+          APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+          $APKSIGNER_PATH sign --ks release.keystore --ks-key-alias "${{ secrets.RELEASE_KEY_ALIAS }}" --ks-pass pass:"${{ secrets.RELEASE_KEYSTORE_PASSWORD }}" --key-pass pass:"${{ secrets.RELEASE_KEY_PASSWORD }}" --out app-release.apk app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Upload Signed Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rvxmobile-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: rvxmobile-release-apk
+          path: app-release.apk
+
+      - name: Set Release Information
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+        run: |
+          echo "RELEASE_TAG=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+          echo "RELEASE_NAME=Release $(date +'%Y-%m-%d %H:%M')" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
+          files: app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
