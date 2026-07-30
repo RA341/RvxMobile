@@ -19,7 +19,7 @@ object DownloadQueueRepository {
     fun addTask(task: DownloadTask) {
         val exists = _downloadQueue.value.any { it.apkUrl == task.apkUrl }
         if (!exists) {
-            _downloadQueue.value = _downloadQueue.value + task
+            _downloadQueue.value += task
         } else {
             updateStatus(task.apkUrl, DownloadStatus.QUEUED, 0f)
         }

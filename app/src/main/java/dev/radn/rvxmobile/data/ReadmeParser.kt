@@ -4,7 +4,7 @@ import java.util.regex.Pattern
 
 object ReadmeParser {
     private val HEADER_PATTERN = Pattern.compile("^(#{2,4})\\s+(.*)")
-    private val LINK_PATTERN = Pattern.compile("\\[([^\\]]+)\\]\\(([^)]+\\.apk)\\)")
+    private val LINK_PATTERN = Pattern.compile("\\[([^]]+)]\\(([^)]+\\.apk)\\)")
     private val PARENTHESIS_PATTERN = Pattern.compile("\\(([^)]+)\\)")
 
     fun parse(markdown: String): List<AppInfo> {
@@ -21,7 +21,7 @@ object ReadmeParser {
 
         fun cleanTitle(title: String): String {
             // Strip markdown link brackets like [Morphe:](link) -> Morphe
-            val unlinked = title.replace(Regex("\\[([^\\]]+)\\]\\([^)]+\\)"), "$1")
+            val unlinked = title.replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")
             return unlinked.replace(":", "").replace("<[^>]*>".toRegex(), "").trim()
         }
 
@@ -61,7 +61,6 @@ object ReadmeParser {
 
             val headerMatcher = HEADER_PATTERN.matcher(lineStrip)
             if (headerMatcher.matches()) {
-                val level = headerMatcher.group(1) ?: ""
                 val rawContent = headerMatcher.group(2) ?: ""
                 val cleaned = cleanTitle(rawContent)
 

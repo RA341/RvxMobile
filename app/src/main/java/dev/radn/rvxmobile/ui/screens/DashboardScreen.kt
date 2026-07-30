@@ -1,13 +1,6 @@
 package dev.radn.rvxmobile.ui.screens
 
 import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,21 +13,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -52,6 +49,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,12 +58,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.net.toUri
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.PatcherInfo
-import androidx.core.net.toUri
 
 @Composable
 fun DashboardScreen(
@@ -75,39 +76,43 @@ fun DashboardScreen(
     deviceAbi: String,
     onDownloadClick: (String, ApkInfo) -> Unit
 ) {
-    val context = LocalContext.current
     val filteredApps = remember(apps, searchQuery) {
         apps.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
+    var selectedAppForDetail by remember { mutableStateOf<AppInfo?>(null) }
 
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 160.dp),
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
-            Spacer(modifier = Modifier.height(12.dp))
-            // Search field
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search apps...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear Search")
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column {
+                Spacer(modifier = Modifier.height(12.dp))
+                // Search field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search apps...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { onSearchQueryChange("") }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear Search")
+                            }
                         }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
-            )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
         }
 
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             // MicroG warning banner
             Card(
                 colors = CardDefaults.cardColors(
@@ -139,87 +144,151 @@ fun DashboardScreen(
         }
 
         items(filteredApps) { app ->
-            AppInfoCard(
+            AppGridCard(
                 app = app,
-                deviceAbi = deviceAbi,
-                onDownloadClick = onDownloadClick,
-                onPlayStoreClick = { url ->
-                    try {
-                        val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-                        context.startActivity(intent)
-                    } catch (_: Exception) {
-                        Toast.makeText(context, "Could not open Play Store Link", Toast.LENGTH_SHORT).show()
-                    }
-                }
+                onClick = { selectedAppForDetail = app }
             )
         }
 
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    selectedAppForDetail?.let { app ->
+        AppDetailDialog(
+            app = app,
+            deviceAbi = deviceAbi,
+            onDownloadClick = onDownloadClick,
+            onDismiss = { selectedAppForDetail = null }
+        )
     }
 }
 
 @Composable
-fun AppInfoCard(
+fun AppGridCard(
     app: AppInfo,
-    deviceAbi: String,
-    onDownloadClick: (String, ApkInfo) -> Unit,
-    onPlayStoreClick: (String) -> Unit
+    onClick: () -> Unit
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-    var selectedPatcherIndex by remember(app.patchers) { mutableStateOf(0) }
-    val selectedPatcher = app.patchers.getOrNull(selectedPatcherIndex) ?: app.patchers.firstOrNull()
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { isExpanded = !isExpanded },
+            .height(136.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(28.dp),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = app.name.take(1).uppercase(),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = app.name,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            Text(
+                text = "${app.patchers.size} ${if (app.patchers.size == 1) "variant" else "variants"}",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+fun AppDetailDialog(
+    app: AppInfo,
+    deviceAbi: String,
+    onDownloadClick: (String, ApkInfo) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedPatcherIndex by remember(app.patchers) { mutableIntStateOf(0) }
+    val selectedPatcher = app.patchers.getOrNull(selectedPatcherIndex) ?: app.patchers.firstOrNull()
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .heightIn(max = 550.dp)
+                .padding(16.dp),
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = app.name,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
                     )
-                    if (app.playStoreLink.isNotEmpty()) {
-                        Text(
-                            text = "Play Store app available",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable { onPlayStoreClick(app.playStoreLink) }
+                    
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 
-                IconButton(onClick = { isExpanded = !isExpanded }) {
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Default.Clear else Icons.Default.Refresh,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                Column(modifier = Modifier.padding(top = 16.dp)) {
-                    HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
-                    
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                ) {
                     if (app.patchers.isEmpty()) {
                         Text(
                             text = "No patcher downloads found in raw data.",
@@ -328,7 +397,7 @@ fun PatcherSection(
             if (patcher.githubLink.isNotEmpty()) {
                 IconButton(
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(patcher.githubLink))
+                        val intent = Intent(Intent.ACTION_VIEW, patcher.githubLink.toUri())
                         context.startActivity(intent)
                     },
                     modifier = Modifier.size(24.dp)
@@ -542,7 +611,7 @@ fun ApkGroupDropdown(
                         onClick = { onDownloadClick(apk) },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         modifier = Modifier.height(32.dp),
-                        shape = androidx.compose.foundation.shape.CircleShape
+                        shape = CircleShape
                     ) {
                         Icon(
                             imageVector = Icons.Default.Download,
