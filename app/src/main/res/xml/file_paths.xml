@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Cache directory mapping for downloaded APKs -->
+    <cache-path name="apk_downloads" path="apks/" />
+</paths>
