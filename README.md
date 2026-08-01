@@ -4,9 +4,11 @@ RVxMobile is an Android application written primarily in Kotlin (97.7%) with a s
 
 ## Latest release
 
-The latest release is: [Release 2026.07.30-1459](https://github.com/RA341/RvxMobile/releases/tag/2026.07.30-1459).
+The README now links to the latest release automatically:
 
-- Direct APK download: https://github.com/RA341/RvxMobile/releases/download/2026.07.30-1459/app-release.apk
+- Release page (always redirects to the latest): https://github.com/RA341/RvxMobile/releases/latest
+
+- Direct APK download (always downloads the `app-release.apk` from the latest release): https://github.com/RA341/RvxMobile/releases/latest/download/app-release.apk
 
 If you want to see other releases or older versions, view all releases here:
 https://github.com/RA341/RvxMobile/releases
