@@ -92,7 +92,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     
     var showPermissionDialog by remember { mutableStateOf(false) }
-    var pendingApkToDownload by remember { mutableStateOf<Pair<String, ApkInfo>?>(null) }
+    var pendingApksToDownload by remember { mutableStateOf<List<Pair<String, ApkInfo>>>(emptyList()) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -101,17 +101,20 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { _ ->
-            pendingApkToDownload?.let { (patcherName, apk) ->
+            if (pendingApksToDownload.isNotEmpty()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                     !context.packageManager.canRequestPackageInstalls()
                 ) {
                     showPermissionDialog = true
                 } else {
-                    val label = "$patcherName - ${apk.label}"
-                    viewModel.enqueueDownload(context, label, apk)
-                    pendingApkToDownload = null
+                    pendingApksToDownload.forEach { (patcherName, apk) ->
+                        val label = "$patcherName - ${apk.label}"
+                        viewModel.enqueueDownload(context, label, apk)
+                    }
+                    val count = pendingApksToDownload.size
+                    pendingApksToDownload = emptyList()
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Added $label to download queue")
+                        snackbarHostState.showSnackbar(if (count == 1) "Added to download queue" else "Added $count items to download queue")
                     }
                 }
             }
@@ -213,7 +216,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 deviceAbi = viewModel.deviceAbi,
                                 pinnedVariants = pinnedVariants,
                                 onDownloadClick = { patcherName, apk ->
-                                    pendingApkToDownload = Pair(patcherName, apk)
+                                    pendingApksToDownload = listOf(Pair(patcherName, apk))
                                     
                                     // Check Post Notifications Permission on Android 13+ (API 33+)
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -229,7 +232,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                         } else {
                                             val label = "$patcherName - ${apk.label}"
                                             viewModel.enqueueDownload(context, label, apk)
-                                            pendingApkToDownload = null
+                                            pendingApksToDownload = emptyList()
                                             coroutineScope.launch {
                                                 snackbarHostState.showSnackbar("Added $label to download queue")
                                             }
@@ -247,7 +250,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 apps = state.apps,
                                 deviceAbi = viewModel.deviceAbi,
                                 onDownloadClick = { appName, patcherName, apk ->
-                                    pendingApkToDownload = Pair(patcherName, apk)
+                                    pendingApksToDownload = listOf(Pair(patcherName, apk))
                                     
                                     // Check Post Notifications Permission on Android 13+ (API 33+)
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -263,9 +266,35 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                         } else {
                                             val label = "$patcherName - ${apk.label}"
                                             viewModel.enqueueDownload(context, label, apk)
-                                            pendingApkToDownload = null
+                                            pendingApksToDownload = emptyList()
                                             coroutineScope.launch {
                                                 snackbarHostState.showSnackbar("Added $label to download queue")
+                                            }
+                                        }
+                                    }
+                                },
+                                onDownloadAllClick = { apks ->
+                                    pendingApksToDownload = apks
+                                    
+                                    // Check Post Notifications Permission on Android 13+ (API 33+)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        // Permission already granted or older system. Check package installation permission.
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                            !context.packageManager.canRequestPackageInstalls()
+                                        ) {
+                                            showPermissionDialog = true
+                                        } else {
+                                            apks.forEach { (patcherName, apk) ->
+                                                val label = "$patcherName - ${apk.label}"
+                                                viewModel.enqueueDownload(context, label, apk)
+                                            }
+                                            pendingApksToDownload = emptyList()
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar("Added ${apks.size} items to download queue")
                                             }
                                         }
                                     }
@@ -357,15 +386,17 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 data = "package:${context.packageName}".toUri()
                             }
                             context.startActivity(intent)
-                            
-                            pendingApkToDownload?.let { (patcherName, apk) ->
-                                 val label = "$patcherName - ${apk.label}"
-                                 viewModel.enqueueDownload(context, label, apk)
-                                 coroutineScope.launch {
-                                     snackbarHostState.showSnackbar("Added $label to download queue")
+                                                        if (pendingApksToDownload.isNotEmpty()) {
+                                 pendingApksToDownload.forEach { (patcherName, apk) ->
+                                     val label = "$patcherName - ${apk.label}"
+                                     viewModel.enqueueDownload(context, label, apk)
                                  }
+                                 val count = pendingApksToDownload.size
+                                 coroutineScope.launch {
+                                     snackbarHostState.showSnackbar(if (count == 1) "Added to download queue" else "Added $count items to download queue")
+                                 }
+                                 pendingApksToDownload = emptyList()
                              }
-                             pendingApkToDownload = null
                         }
                     }
                 ) {
@@ -375,7 +406,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
             dismissButton = {
                 TextButton(onClick = { 
                     showPermissionDialog = false 
-                    pendingApkToDownload = null
+                    pendingApksToDownload = emptyList()
                 }) {
                     Text("Cancel")
                 }

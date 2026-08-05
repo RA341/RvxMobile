@@ -50,6 +50,7 @@ fun PinnedScreen(
     apps: List<AppInfo>,
     deviceAbi: String,
     onDownloadClick: (String, String, ApkInfo) -> Unit,
+    onDownloadAllClick: (List<Pair<String, ApkInfo>>) -> Unit,
     onUnpinClick: (PinnedVariant) -> Unit
 ) {
     if (pinnedVariants.isEmpty()) {
@@ -110,20 +111,63 @@ fun PinnedScreen(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Your Bookmarks",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Text(
-                        text = "Quick access to your pinned releases. They sync with the latest README live feed automatically.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 16.sp,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Your Bookmarks",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            Text(
+                                text = "Quick access to your pinned releases. They sync with the latest README live feed automatically.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 16.sp
+                            )
+                        }
+                        
+                        val availablePins = remember(pinnedVariants, apps) {
+                            pinnedVariants.mapNotNull { pinned ->
+                                val matchedApp = apps.find { it.name.equals(pinned.appName, ignoreCase = true) }
+                                val matchedPatcher = matchedApp?.patchers?.find { it.name.equals(pinned.patcherName, ignoreCase = true) }
+                                val liveApk = matchedPatcher?.apks?.find { 
+                                    it.label.trim() == pinned.apkLabel.trim() && it.isBeta == pinned.isBeta 
+                                } ?: matchedPatcher?.apks?.find { 
+                                    it.label.trim() == pinned.apkLabel.trim() 
+                                }
+                                if (liveApk != null) Pair(pinned.patcherName, liveApk) else null
+                            }
+                        }
+
+                        if (availablePins.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = { onDownloadAllClick(availablePins) },
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                modifier = Modifier.height(36.dp),
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = "Install All",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Install All", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
 
