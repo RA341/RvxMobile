@@ -19,3 +19,26 @@ data class ApkInfo(
     val isLite: Boolean,
     val isOutdated: Boolean
 )
+
+data class PinnedVariant(
+    val appName: String,
+    val patcherName: String,
+    val apkLabel: String,
+    val isBeta: Boolean
+) {
+    fun toSerializedString(): String = "$appName|$patcherName|$apkLabel|$isBeta"
+    
+    companion object {
+        fun fromSerializedString(str: String): PinnedVariant? {
+            val parts = str.split("|")
+            if (parts.size < 4) return null
+            return PinnedVariant(
+                appName = parts[0],
+                patcherName = parts[1],
+                apkLabel = parts[2],
+                isBeta = parts[3].toBoolean()
+            )
+        }
+    }
+}
+

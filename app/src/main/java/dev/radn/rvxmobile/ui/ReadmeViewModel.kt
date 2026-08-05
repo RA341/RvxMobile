@@ -1,16 +1,18 @@
 package dev.radn.rvxmobile.ui
 
+import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.DownloadQueueRepository
+import dev.radn.rvxmobile.data.PinnedVariant
 import dev.radn.rvxmobile.data.ReadmeParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,9 +47,14 @@ data class DownloadTask(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-class ReadmeViewModel : ViewModel() {
+class ReadmeViewModel(application: Application) : AndroidViewModel(application) {
     private val client = OkHttpClient()
     
+    private val prefs = application.getSharedPreferences("rvx_mobile_pins", Context.MODE_PRIVATE)
+    
+    private val _pinnedVariants = MutableStateFlow<List<PinnedVariant>>(emptyList())
+    val pinnedVariants: StateFlow<List<PinnedVariant>> = _pinnedVariants
+
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState
 
@@ -62,8 +69,40 @@ class ReadmeViewModel : ViewModel() {
     }
 
     init {
+        loadPins()
         loadData()
     }
+
+    private fun loadPins() {
+        val saved = prefs.getStringSet("pinned_variants", emptySet()) ?: emptySet()
+        _pinnedVariants.value = saved.mapNotNull { PinnedVariant.fromSerializedString(it) }
+    }
+
+    fun togglePin(appName: String, patcherName: String, apk: ApkInfo) {
+        val current = _pinnedVariants.value.toMutableList()
+        val existing = current.find { 
+            it.appName == appName && it.patcherName == patcherName && it.apkLabel == apk.label && it.isBeta == apk.isBeta 
+        }
+        if (existing != null) {
+            current.remove(existing)
+        } else {
+            current.add(PinnedVariant(
+                appName = appName,
+                patcherName = patcherName,
+                apkLabel = apk.label,
+                isBeta = apk.isBeta
+            ))
+        }
+        _pinnedVariants.value = current
+        prefs.edit().putStringSet("pinned_variants", current.map { it.toSerializedString() }.toSet()).apply()
+    }
+
+    fun isPinned(appName: String, patcherName: String, apk: ApkInfo): Boolean {
+        return _pinnedVariants.value.any { 
+            it.appName == appName && it.patcherName == patcherName && it.apkLabel == apk.label && it.isBeta == apk.isBeta 
+        }
+    }
+
 
     fun loadData() {
         _uiState.value = UiState.Loading

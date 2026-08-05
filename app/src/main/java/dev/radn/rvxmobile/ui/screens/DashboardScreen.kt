@@ -29,10 +29,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +48,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -67,91 +73,136 @@ import androidx.core.net.toUri
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.PatcherInfo
+import dev.radn.rvxmobile.data.PinnedVariant
 
 @Composable
 fun DashboardScreen(
     apps: List<AppInfo>,
+    rawMarkdown: String,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     deviceAbi: String,
-    onDownloadClick: (String, ApkInfo) -> Unit
+    pinnedVariants: List<PinnedVariant>,
+    onDownloadClick: (String, ApkInfo) -> Unit,
+    onPinClick: (AppInfo, PatcherInfo, ApkInfo) -> Unit
 ) {
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Installer", "README")
+
     val filteredApps = remember(apps, searchQuery) {
         apps.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
     var selectedAppForDetail by remember { mutableStateOf<AppInfo?>(null) }
 
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column {
-                Spacer(modifier = Modifier.height(12.dp))
-                // Search field
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search apps...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { onSearchQueryChange("") }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear Search")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(
+            selectedTabIndex = selectedTabIndex,
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index },
+                    text = {
+                        Text(
+                            text = title,
+                            fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 14.sp
+                        )
+                    }
                 )
             }
         }
 
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            // MicroG warning banner
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Row(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f)
+        ) {
+            if (selectedTabIndex == 0) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 160.dp),
                     modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxSize()
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "MicroG Alert",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "For YouTube, YouTube Music, and Google Photos, make sure to download and install MicroG RE first.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        lineHeight = 18.sp
-                    )
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            // Search field
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = onSearchQueryChange,
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Search apps...") },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { onSearchQueryChange("") }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear Search")
+                                        }
+                                    }
+                                },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    }
+
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        // MicroG warning banner
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "MicroG Alert",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "For YouTube, YouTube Music, and Google Photos, make sure to download and install MicroG RE first.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+
+                    items(filteredApps) { app ->
+                        AppGridCard(
+                            app = app,
+                            onClick = { selectedAppForDetail = app }
+                        )
+                    }
+
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
+            } else {
+                ReadmeWebViewScreen(rawMarkdown = rawMarkdown)
             }
-        }
-
-        items(filteredApps) { app ->
-            AppGridCard(
-                app = app,
-                onClick = { selectedAppForDetail = app }
-            )
-        }
-
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 
@@ -159,7 +210,9 @@ fun DashboardScreen(
         AppDetailDialog(
             app = app,
             deviceAbi = deviceAbi,
+            pinnedVariants = pinnedVariants,
             onDownloadClick = onDownloadClick,
+            onPinClick = onPinClick,
             onDismiss = { selectedAppForDetail = null }
         )
     }
@@ -232,7 +285,9 @@ fun AppGridCard(
 fun AppDetailDialog(
     app: AppInfo,
     deviceAbi: String,
+    pinnedVariants: List<PinnedVariant>,
     onDownloadClick: (String, ApkInfo) -> Unit,
+    onPinClick: (AppInfo, PatcherInfo, ApkInfo) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedPatcherIndex by remember(app.patchers) { mutableIntStateOf(0) }
@@ -327,9 +382,12 @@ fun AppDetailDialog(
 
                         selectedPatcher?.let { patcher ->
                             PatcherSection(
+                                appName = app.name,
                                 patcher = patcher,
                                 deviceAbi = deviceAbi,
-                                onDownloadClick = { apk -> onDownloadClick(patcher.name, apk) }
+                                pinnedVariants = pinnedVariants,
+                                onDownloadClick = { apk -> onDownloadClick(patcher.name, apk) },
+                                onPinClick = { apk -> onPinClick(app, patcher, apk) }
                             )
                         }
                     }
@@ -342,11 +400,25 @@ fun AppDetailDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PatcherSection(
+    appName: String,
     patcher: PatcherInfo,
     deviceAbi: String,
-    onDownloadClick: (ApkInfo) -> Unit
+    pinnedVariants: List<PinnedVariant>,
+    onDownloadClick: (ApkInfo) -> Unit,
+    onPinClick: (ApkInfo) -> Unit
 ) {
     val context = LocalContext.current
+    
+    val isPinned = remember(pinnedVariants, appName, patcher.name) {
+        { apk: ApkInfo ->
+            pinnedVariants.any {
+                it.appName.equals(appName, ignoreCase = true) &&
+                it.patcherName.equals(patcher.name, ignoreCase = true) &&
+                it.apkLabel == apk.label &&
+                it.isBeta == apk.isBeta
+            }
+        }
+    }
     
     val stableApks = remember(patcher.apks) { patcher.apks.filter { !it.isBeta } }
     val betaApks = remember(patcher.apks) { patcher.apks.filter { it.isBeta } }
@@ -426,7 +498,9 @@ fun PatcherSection(
                     titleColor = MaterialTheme.colorScheme.primary,
                     apks = stableApks,
                     recommendedApk = recommendedStable,
-                    onDownloadClick = onDownloadClick
+                    onDownloadClick = onDownloadClick,
+                    isPinned = isPinned,
+                    onPinClick = onPinClick
                 )
             }
             
@@ -439,7 +513,9 @@ fun PatcherSection(
                     titleColor = MaterialTheme.colorScheme.secondary,
                     apks = betaApks,
                     recommendedApk = recommendedBeta,
-                    onDownloadClick = onDownloadClick
+                    onDownloadClick = onDownloadClick,
+                    isPinned = isPinned,
+                    onPinClick = onPinClick
                 )
             }
         }
@@ -453,7 +529,9 @@ fun ApkGroupDropdown(
     titleColor: Color,
     apks: List<ApkInfo>,
     recommendedApk: ApkInfo?,
-    onDownloadClick: (ApkInfo) -> Unit
+    onDownloadClick: (ApkInfo) -> Unit,
+    isPinned: (ApkInfo) -> Boolean,
+    onPinClick: (ApkInfo) -> Unit
 ) {
     var selectedApk by remember(apks) { mutableStateOf(recommendedApk) }
     var expanded by remember { mutableStateOf(false) }
@@ -583,45 +661,59 @@ fun ApkGroupDropdown(
                     color = if (isSelectedRecommended) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                 )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Selected: ${apk.label}",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Medium
-                        )
-                        if (isSelectedRecommended) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Matches device ABI architecture",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.primary,
+                                text = "Selected: ${apk.label}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Medium
                             )
+                            if (isSelectedRecommended) {
+                                Text(
+                                    text = "Matches device ABI architecture",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        
+                        val isPinnedVal = isPinned(apk)
+                        IconButton(
+                            onClick = { onPinClick(apk) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isPinnedVal) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = if (isPinnedVal) "Unpin Variant" else "Pin Variant",
+                                tint = if (isPinnedVal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        
+                        Button(
+                            onClick = { onDownloadClick(apk) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(32.dp),
+                            shape = CircleShape
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Download",
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Download", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    
-                    Button(
-                        onClick = { onDownloadClick(apk) },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.height(32.dp),
-                        shape = CircleShape
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Download",
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Download", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         }
     }
