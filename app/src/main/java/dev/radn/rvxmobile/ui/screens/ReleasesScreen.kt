@@ -38,6 +38,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -243,6 +247,7 @@ fun ReleaseAssetCard(
     onRemoveClick: (DownloadTask) -> Unit,
     onRetryClick: (DownloadTask) -> Unit
 ) {
+    val localContext = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -271,8 +276,16 @@ fun ReleaseAssetCard(
                     )
                     Text(
                         text = "Updated: ${formatDate(asset.updatedAt)}",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.pointerInput(asset.updatedAt) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    Toast.makeText(localContext, "Full Date: ${getFullDate(asset.updatedAt)}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
                     )
                 }
 
@@ -561,8 +574,6 @@ private fun formatDate(isoDate: String): String {
             timeZone = TimeZone.getTimeZone("UTC")
         }
         val date = inputFormat.parse(isoDate) ?: return isoDate
-        val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        val absoluteTime = outputFormat.format(date)
         
         val diff = System.currentTimeMillis() - date.time
         val seconds = diff / 1000
@@ -584,7 +595,20 @@ private fun formatDate(isoDate: String): String {
             else -> if (years == 1L) "1 year ago" else "$years years ago"
         }
         
-        "$absoluteTime ($relativeTime)"
+        relativeTime
+    } catch (e: Exception) {
+        isoDate
+    }
+}
+
+private fun getFullDate(isoDate: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val date = inputFormat.parse(isoDate) ?: return isoDate
+        val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        outputFormat.format(date)
     } catch (e: Exception) {
         isoDate
     }

@@ -40,6 +40,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import android.widget.Toast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.radn.rvxmobile.data.PinnedReleaseAsset
@@ -178,6 +182,7 @@ fun PinnedReleaseAssetCard(
     onRemoveClick: (DownloadTask) -> Unit,
     onRetryClick: (DownloadTask) -> Unit
 ) {
+    val localContext = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -206,15 +211,30 @@ fun PinnedReleaseAssetCard(
                     )
                     Text(
                         text = "Updated: ${formatDate(asset.updatedAt)}",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.pointerInput(asset.updatedAt) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    Toast.makeText(localContext, "Full Date: ${getFullDate(asset.updatedAt)}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
                     )
                     if (lastInstalledTime > 0L) {
                         Text(
                             text = "Last Installed: ${formatLastInstalled(lastInstalledTime)}",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.pointerInput(lastInstalledTime) {
+                                detectTapGestures(
+                                    onLongPress = {
+                                        Toast.makeText(localContext, "Installed: ${getFullLastInstalled(lastInstalledTime)}", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
                         )
                     }
                 }
@@ -555,8 +575,6 @@ private fun formatDate(isoDate: String): String {
             timeZone = TimeZone.getTimeZone("UTC")
         }
         val date = inputFormat.parse(isoDate) ?: return isoDate
-        val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        val absoluteTime = outputFormat.format(date)
         
         val diff = System.currentTimeMillis() - date.time
         val seconds = diff / 1000
@@ -578,7 +596,7 @@ private fun formatDate(isoDate: String): String {
             else -> if (years == 1L) "1 year ago" else "$years years ago"
         }
         
-        "$absoluteTime ($relativeTime)"
+        relativeTime
     } catch (e: Exception) {
         isoDate
     }
@@ -587,8 +605,48 @@ private fun formatDate(isoDate: String): String {
 private fun formatLastInstalled(timestamp: Long): String {
     if (timestamp <= 0L) return ""
     return try {
+        val diff = System.currentTimeMillis() - timestamp
+        val seconds = diff / 1000
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        val days = hours / 24
+        val weeks = days / 7
+        val months = days / 30
+        val years = days / 365
+
+        when {
+            diff < 0 -> "just now"
+            seconds < 60 -> "just now"
+            minutes < 60 -> if (minutes == 1L) "1 minute ago" else "$minutes minutes ago"
+            hours < 24 -> if (hours == 1L) "1 hour ago" else "$hours hours ago"
+            days < 7 -> if (days == 1L) "1 day ago" else "$days days ago"
+            weeks < 4 -> if (weeks == 1L) "1 week ago" else "$weeks weeks ago"
+            months < 12 -> if (months == 1L) "1 month ago" else "$months months ago"
+            else -> if (years == 1L) "1 year ago" else "$years years ago"
+        }
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+private fun getFullDate(isoDate: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val date = inputFormat.parse(isoDate) ?: return isoDate
+        val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        outputFormat.format(date)
+    } catch (e: Exception) {
+        isoDate
+    }
+}
+
+private fun getFullLastInstalled(timestamp: Long): String {
+    if (timestamp <= 0L) return ""
+    return try {
         val date = java.util.Date(timestamp)
-        val format = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         format.format(date)
     } catch (e: Exception) {
         ""

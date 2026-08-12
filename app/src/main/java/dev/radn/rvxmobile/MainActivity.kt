@@ -1,7 +1,11 @@
 package dev.radn.rvxmobile
 
 import android.Manifest
+import android.app.NotificationManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -38,11 +42,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import java.io.File
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,6 +90,74 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     val context = LocalContext.current
+    
+    // Clean up notifications for packages that are already installed when app starts/resumes
+    LaunchedEffect(Unit) {
+        val cacheDir = File(context.cacheDir, "apks")
+        if (cacheDir.exists()) {
+            val files = cacheDir.listFiles() ?: emptyArray()
+            val pm = context.packageManager
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            for (file in files) {
+                if (file.isFile && file.name.endsWith(".apk")) {
+                    val packageInfo = pm.getPackageArchiveInfo(file.absolutePath, 0)
+                    if (packageInfo != null) {
+                        val isInstalled = try {
+                            pm.getPackageInfo(packageInfo.packageName, 0)
+                            true
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            false
+                        }
+                        if (isInstalled) {
+                            nm.cancel(2000 + file.name.hashCode())
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dynamic receiver for package installs
+    DisposableEffect(context) {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: Intent) {
+                val action = intent.action
+                if (action == Intent.ACTION_PACKAGE_ADDED || action == Intent.ACTION_PACKAGE_REPLACED) {
+                    val packageName = intent.data?.schemeSpecificPart ?: return
+                    val cacheDir = File(ctx.cacheDir, "apks")
+                    if (cacheDir.exists()) {
+                        val files = cacheDir.listFiles() ?: emptyArray()
+                        val pm = ctx.packageManager
+                        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        for (file in files) {
+                            if (file.isFile && file.name.endsWith(".apk")) {
+                                val packageInfo = pm.getPackageArchiveInfo(file.absolutePath, 0)
+                                if (packageInfo != null && packageInfo.packageName == packageName) {
+                                    nm.cancel(2000 + file.name.hashCode())
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, filter)
+        }
+
+        onDispose {
+            context.unregisterReceiver(receiver)
+        }
+    }
+
     val uiState by viewModel.uiState.collectAsState()
     val downloadQueue by viewModel.downloadQueue.collectAsState()
     val pinnedVariants by viewModel.pinnedVariants.collectAsState()
