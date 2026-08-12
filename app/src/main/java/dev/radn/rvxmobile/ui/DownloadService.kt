@@ -1,6 +1,9 @@
 package dev.radn.rvxmobile.ui
 
-import android.app.*
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -9,7 +12,11 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import dev.radn.rvxmobile.data.DownloadQueueRepository
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient

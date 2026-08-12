@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,10 +50,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.data.ReleaseAsset
-import dev.radn.rvxmobile.data.ReleaseInfo
 import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.DownloadTask
 import dev.radn.rvxmobile.ui.ReleasesState
@@ -565,7 +562,29 @@ private fun formatDate(isoDate: String): String {
         }
         val date = inputFormat.parse(isoDate) ?: return isoDate
         val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        outputFormat.format(date)
+        val absoluteTime = outputFormat.format(date)
+        
+        val diff = System.currentTimeMillis() - date.time
+        val seconds = diff / 1000
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        val days = hours / 24
+        val weeks = days / 7
+        val months = days / 30
+        val years = days / 365
+
+        val relativeTime = when {
+            diff < 0 -> "just now"
+            seconds < 60 -> "just now"
+            minutes < 60 -> if (minutes == 1L) "1 minute ago" else "$minutes minutes ago"
+            hours < 24 -> if (hours == 1L) "1 hour ago" else "$hours hours ago"
+            days < 7 -> if (days == 1L) "1 day ago" else "$days days ago"
+            weeks < 4 -> if (weeks == 1L) "1 week ago" else "$weeks weeks ago"
+            months < 12 -> if (months == 1L) "1 month ago" else "$months months ago"
+            else -> if (years == 1L) "1 year ago" else "$years years ago"
+        }
+        
+        "$absoluteTime ($relativeTime)"
     } catch (e: Exception) {
         isoDate
     }

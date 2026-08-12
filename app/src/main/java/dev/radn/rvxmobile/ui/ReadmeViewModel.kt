@@ -9,15 +9,15 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.radn.rvxmobile.BuildConfig
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.DownloadQueueRepository
+import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.data.PinnedVariant
 import dev.radn.rvxmobile.data.ReadmeParser
-import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.data.ReleaseAsset
 import dev.radn.rvxmobile.data.ReleaseInfo
-import dev.radn.rvxmobile.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow

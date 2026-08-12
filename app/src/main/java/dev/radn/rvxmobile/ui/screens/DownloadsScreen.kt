@@ -23,14 +23,14 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +52,7 @@ import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.DownloadTask
 import dev.radn.rvxmobile.ui.ReleasesState
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
     // Queue State & Actions
@@ -73,13 +74,13 @@ fun DownloadsScreen(
     val tabs = listOf("Queue", "Pinned")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(
+        SecondaryTabRow(
             selectedTabIndex = selectedTabIndex,
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
             contentColor = MaterialTheme.colorScheme.onSurface,
-            indicator = { tabPositions ->
+            indicator = {
                 TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                    modifier = Modifier.tabIndicatorOffset(selectedTabIndex),
                     color = MaterialTheme.colorScheme.primary
                 )
             }

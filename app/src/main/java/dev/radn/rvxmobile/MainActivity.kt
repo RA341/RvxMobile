@@ -31,12 +31,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,7 +46,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,19 +56,17 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.radn.rvxmobile.data.ApkInfo
-import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.ui.AppUpdateState
 import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.ReadmeViewModel
-import dev.radn.rvxmobile.ui.ReleasesState
 import dev.radn.rvxmobile.ui.UiState
 import dev.radn.rvxmobile.ui.navigation.Screen
 import dev.radn.rvxmobile.ui.screens.DashboardScreen
 import dev.radn.rvxmobile.ui.screens.DownloadsScreen
 import dev.radn.rvxmobile.ui.screens.PinnedScreen
-import dev.radn.rvxmobile.ui.screens.ReadmeWebViewScreen
 import dev.radn.rvxmobile.ui.screens.SettingsScreen
 import dev.radn.rvxmobile.ui.theme.RvxMobileTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

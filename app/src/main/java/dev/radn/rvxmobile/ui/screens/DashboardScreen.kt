@@ -40,6 +40,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -48,10 +49,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -73,14 +73,15 @@ import androidx.core.net.toUri
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.PatcherInfo
-import dev.radn.rvxmobile.data.PinnedVariant
 import dev.radn.rvxmobile.data.PinnedReleaseAsset
+import dev.radn.rvxmobile.data.PinnedVariant
 import dev.radn.rvxmobile.data.ReleaseAsset
 import dev.radn.rvxmobile.ui.DownloadTask
 import dev.radn.rvxmobile.ui.ReleasesState
 import java.util.Locale
 import java.util.TimeZone
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     apps: List<AppInfo>,
@@ -115,13 +116,13 @@ fun DashboardScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(
+        SecondaryTabRow(
             selectedTabIndex = selectedTabIndex,
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
             contentColor = MaterialTheme.colorScheme.onSurface,
-            indicator = { tabPositions ->
+            indicator = {
                 TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                    modifier = Modifier.tabIndicatorOffset(selectedTabIndex),
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -611,7 +612,7 @@ fun ApkGroupDropdown(
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier
-                    .menuAnchor()
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -807,7 +808,29 @@ private fun formatDate(isoDate: String): String {
         }
         val date = inputFormat.parse(isoDate) ?: return isoDate
         val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        outputFormat.format(date)
+        val absoluteTime = outputFormat.format(date)
+        
+        val diff = System.currentTimeMillis() - date.time
+        val seconds = diff / 1000
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        val days = hours / 24
+        val weeks = days / 7
+        val months = days / 30
+        val years = days / 365
+
+        val relativeTime = when {
+            diff < 0 -> "just now"
+            seconds < 60 -> "just now"
+            minutes < 60 -> if (minutes == 1L) "1 minute ago" else "$minutes minutes ago"
+            hours < 24 -> if (hours == 1L) "1 hour ago" else "$hours hours ago"
+            days < 7 -> if (days == 1L) "1 day ago" else "$days days ago"
+            weeks < 4 -> if (weeks == 1L) "1 week ago" else "$weeks weeks ago"
+            months < 12 -> if (months == 1L) "1 month ago" else "$months months ago"
+            else -> if (years == 1L) "1 year ago" else "$years years ago"
+        }
+        
+        "$absoluteTime ($relativeTime)"
     } catch (e: Exception) {
         isoDate
     }
