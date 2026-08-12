@@ -17,6 +17,7 @@ import dev.radn.rvxmobile.data.ReadmeParser
 import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.data.ReleaseAsset
 import dev.radn.rvxmobile.data.ReleaseInfo
+import dev.radn.rvxmobile.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.text.SimpleDateFormat
 import java.util.Locale
 
 sealed interface UiState {
@@ -45,6 +47,20 @@ enum class DownloadStatus {
     DOWNLOADING,
     COMPLETED,
     FAILED
+}
+
+sealed interface AppUpdateState {
+    object Idle : AppUpdateState
+    object Checking : AppUpdateState
+    data class UpdateAvailable(
+        val versionTag: String,
+        val releaseName: String,
+        val downloadUrl: String,
+        val sizeBytes: Long,
+        val publishedAt: String
+    ) : AppUpdateState
+    object UpToDate : AppUpdateState
+    data class Error(val message: String) : AppUpdateState
 }
 
 data class DownloadTask(
@@ -76,6 +92,16 @@ class ReadmeViewModel(application: Application) : AndroidViewModel(application) 
     private val _releasesState = MutableStateFlow<ReleasesState>(ReleasesState.Loading)
     val releasesState: StateFlow<ReleasesState> = _releasesState
 
+    private val _appUpdateState = MutableStateFlow<AppUpdateState>(AppUpdateState.Idle)
+    val appUpdateState: StateFlow<AppUpdateState> = _appUpdateState
+
+    var wasUpdatePromptDismissed = false
+        private set
+
+    fun dismissUpdatePrompt() {
+        wasUpdatePromptDismissed = true
+    }
+
     // Expose download queue flow from the centralized repository
     val downloadQueue: StateFlow<List<DownloadTask>> = DownloadQueueRepository.downloadQueue
 
@@ -91,6 +117,7 @@ class ReadmeViewModel(application: Application) : AndroidViewModel(application) 
         loadData()
         loadReleases()
         syncQueueWithCache()
+        checkForAppUpdates()
     }
 
     private fun loadPins() {
@@ -368,5 +395,91 @@ class ReadmeViewModel(application: Application) : AndroidViewModel(application) 
             htmlUrl = obj.getString("html_url"),
             assets = assets
         )
+    }
+
+    fun formatSize(bytes: Long): String {
+        return when {
+            bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.2f MB", bytes.toDouble() / (1024 * 1024))
+            bytes >= 1024 -> String.format(Locale.getDefault(), "%.2f KB", bytes.toDouble() / 1024)
+            else -> "$bytes B"
+        }
+    }
+
+    private fun isUpdateAvailable(currentBuildDateStr: String, publishedAtStr: String): Boolean {
+        val buildDateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        val publishedDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+        return try {
+            val buildDate = buildDateFormat.parse(currentBuildDateStr)
+            val publishedDate = publishedDateFormat.parse(publishedAtStr)
+            if (buildDate != null && publishedDate != null) {
+                // If the published date is more than 3 minutes after the build date, it's a new release.
+                publishedDate.time > buildDate.time + 180_000
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun checkForAppUpdates() {
+        _appUpdateState.value = AppUpdateState.Checking
+        viewModelScope.launch {
+            try {
+                val updateStateResult = withContext(Dispatchers.IO) {
+                    val request = Request.Builder()
+                        .url("https://api.github.com/repos/RA341/RvxMobile/releases/latest")
+                        .header("User-Agent", "RvxMobile")
+                        .build()
+                    val response = client.newCall(request).execute()
+                    if (response.code == 404) {
+                        return@withContext AppUpdateState.UpToDate
+                    }
+                    if (!response.isSuccessful) throw Exception("Failed to check updates: ${response.code}")
+                    val jsonStr = response.body?.string() ?: throw Exception("Empty body")
+                    val obj = org.json.JSONObject(jsonStr)
+                    
+                    val tagName = obj.getString("tag_name")
+                    val name = obj.getString("name")
+                    val publishedAt = obj.getString("published_at")
+                    
+                    val assets = obj.getJSONArray("assets")
+                    var downloadUrl = ""
+                    var sizeBytes = 0L
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(i)
+                        if (asset.getString("name") == "app-release.apk") {
+                            downloadUrl = asset.getString("browser_download_url")
+                            sizeBytes = asset.getLong("size")
+                            break
+                        }
+                    }
+                    
+                    if (downloadUrl.isEmpty()) {
+                        throw Exception("Release does not contain app-release.apk")
+                    }
+                    
+                    val isAvailable = isUpdateAvailable(BuildConfig.BUILD_DATE, publishedAt)
+                    if (isAvailable) {
+                        AppUpdateState.UpdateAvailable(
+                            versionTag = tagName,
+                            releaseName = name,
+                            downloadUrl = downloadUrl,
+                            sizeBytes = sizeBytes,
+                            publishedAt = publishedAt
+                        )
+                    } else {
+                        AppUpdateState.UpToDate
+                    }
+                }
+                _appUpdateState.value = updateStateResult
+            } catch (e: Exception) {
+                _appUpdateState.value = AppUpdateState.Error(e.localizedMessage ?: "Unknown Error")
+            }
+        }
     }
 }

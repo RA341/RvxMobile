@@ -2,6 +2,7 @@ import java.lang.ProcessBuilder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 plugins {
     alias(libs.plugins.android.application)
@@ -19,7 +20,9 @@ val gitHash = if (!System.getenv("GITHUB_SHA").isNullOrBlank()) {
 }
 
 val buildDate: String by lazy {
-    val df = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    val df = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
     df.format(Date())
 }
 

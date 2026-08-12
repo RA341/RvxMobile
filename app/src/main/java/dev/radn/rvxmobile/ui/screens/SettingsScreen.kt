@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
@@ -30,16 +31,21 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,11 +55,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.radn.rvxmobile.BuildConfig
+import dev.radn.rvxmobile.data.ApkInfo
+import dev.radn.rvxmobile.ui.AppUpdateState
+import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.ReadmeViewModel
 import androidx.core.net.toUri
 
 @Composable
-fun SettingsScreen(viewModel: ReadmeViewModel) {
+fun SettingsScreen(
+    viewModel: ReadmeViewModel,
+    onUpdateClick: (AppUpdateState.UpdateAvailable) -> Unit
+) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
     
@@ -82,9 +94,6 @@ fun SettingsScreen(viewModel: ReadmeViewModel) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Application Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(28.dp),
@@ -103,6 +112,154 @@ fun SettingsScreen(viewModel: ReadmeViewModel) {
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                val appUpdateState by viewModel.appUpdateState.collectAsState()
+                val downloadQueue by viewModel.downloadQueue.collectAsState()
+
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                when (val updateState = appUpdateState) {
+                    is AppUpdateState.Idle -> {
+                        Button(
+                            onClick = { viewModel.checkForAppUpdates() },
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Check for Updates", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    is AppUpdateState.Checking -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Checking for updates...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    is AppUpdateState.UpToDate -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Up to date",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("App is up to date", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            TextButton(
+                                onClick = { viewModel.checkForAppUpdates() },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("Check Again", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    is AppUpdateState.Error -> {
+                        Column {
+                            Text("Error checking updates: ${updateState.message}", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Button(
+                                onClick = { viewModel.checkForAppUpdates() },
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Retry", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    is AppUpdateState.UpdateAvailable -> {
+                        val updateTask = downloadQueue.find { it.apkUrl == updateState.downloadUrl }
+
+                        Column {
+                            Text("New version available: ${updateState.versionTag}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("Size: ${viewModel.formatSize(updateState.sizeBytes)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (updateTask == null) {
+                                Button(
+                                    onClick = { onUpdateClick(updateState) },
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text("Download & Install", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                when (updateTask.status) {
+                                    DownloadStatus.QUEUED -> {
+                                        Text("Download queued...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    DownloadStatus.DOWNLOADING -> {
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text("Downloading update...", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("${(updateTask.progress * 100).toInt()}%", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            LinearProgressIndicator(
+                                                progress = { updateTask.progress },
+                                                modifier = Modifier.fillMaxWidth().height(6.dp),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                        }
+                                    }
+                                    DownloadStatus.COMPLETED -> {
+                                        Button(
+                                            onClick = { viewModel.installCachedFile(context, updateTask) },
+                                            shape = androidx.compose.foundation.shape.CircleShape,
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                                            modifier = Modifier.height(32.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        ) {
+                                            Text("Install Update", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    DownloadStatus.FAILED -> {
+                                        Column {
+                                            Text("Download failed: ${updateTask.errorMsg ?: "Unknown error"}", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Button(
+                                                onClick = {
+                                                    val apkInfo = ApkInfo(
+                                                        label = updateTask.label,
+                                                        url = updateTask.apkUrl,
+                                                        isBeta = false,
+                                                        isLite = false,
+                                                        isOutdated = false
+                                                    )
+                                                    viewModel.enqueueDownload(context, updateTask.label, apkInfo)
+                                                },
+                                                shape = androidx.compose.foundation.shape.CircleShape,
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                modifier = Modifier.height(32.dp)
+                                            ) {
+                                                Text("Retry Download", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

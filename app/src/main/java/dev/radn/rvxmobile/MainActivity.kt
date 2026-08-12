@@ -58,6 +58,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.PinnedReleaseAsset
+import dev.radn.rvxmobile.ui.AppUpdateState
 import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.ReadmeViewModel
 import dev.radn.rvxmobile.ui.ReleasesState
@@ -113,7 +114,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                     showPermissionDialog = true
                 } else {
                     pendingApksToDownload.forEach { (patcherName, apk) ->
-                        val label = "$patcherName - ${apk.label}"
+                        val label = if (patcherName == "RvxMobile Update") apk.label else "$patcherName - ${apk.label}"
                         viewModel.enqueueDownload(context, label, apk)
                     }
                     val count = pendingApksToDownload.size
@@ -125,6 +126,11 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
             }
         }
     )
+
+    // Auto check for updates on startup
+    LaunchedEffect(Unit) {
+        viewModel.checkForAppUpdates()
+    }
 
     // Listen to ViewModel install events
     LaunchedEffect(viewModel, downloadQueue) {
@@ -415,7 +421,38 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                             )
                         }
                         Screen.SETTINGS -> {
-                            SettingsScreen(viewModel = viewModel)
+                            SettingsScreen(
+                                viewModel = viewModel,
+                                onUpdateClick = { update ->
+                                    val apkInfo = ApkInfo(
+                                        label = "RvxMobile Update - ${update.versionTag}",
+                                        url = update.downloadUrl,
+                                        isBeta = false,
+                                        isLite = false,
+                                        isOutdated = false
+                                    )
+                                    
+                                    // Check Post Notifications Permission on Android 13+ (API 33+)
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        pendingApksToDownload = listOf(Pair("RvxMobile Update", apkInfo))
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                            !context.packageManager.canRequestPackageInstalls()
+                                        ) {
+                                            pendingApksToDownload = listOf(Pair("RvxMobile Update", apkInfo))
+                                            showPermissionDialog = true
+                                        } else {
+                                            viewModel.enqueueDownload(context, "RvxMobile Update - ${update.versionTag}", apkInfo)
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar("Downloading update...")
+                                            }
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -470,17 +507,17 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 data = "package:${context.packageName}".toUri()
                             }
                             context.startActivity(intent)
-                                                        if (pendingApksToDownload.isNotEmpty()) {
-                                 pendingApksToDownload.forEach { (patcherName, apk) ->
-                                     val label = "$patcherName - ${apk.label}"
-                                     viewModel.enqueueDownload(context, label, apk)
-                                 }
-                                 val count = pendingApksToDownload.size
-                                 coroutineScope.launch {
-                                     snackbarHostState.showSnackbar(if (count == 1) "Added to download queue" else "Added $count items to download queue")
-                                 }
-                                 pendingApksToDownload = emptyList()
-                             }
+                                                         if (pendingApksToDownload.isNotEmpty()) {
+                                  pendingApksToDownload.forEach { (patcherName, apk) ->
+                                      val label = if (patcherName == "RvxMobile Update") apk.label else "$patcherName - ${apk.label}"
+                                      viewModel.enqueueDownload(context, label, apk)
+                                  }
+                                  val count = pendingApksToDownload.size
+                                  coroutineScope.launch {
+                                      snackbarHostState.showSnackbar(if (count == 1) "Added to download queue" else "Added $count items to download queue")
+                                  }
+                                  pendingApksToDownload = emptyList()
+                              }
                         }
                     }
                 ) {
@@ -496,5 +533,85 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                 }
             }
         )
+    }
+
+    // App Update Dialog
+    val appUpdateState by viewModel.appUpdateState.collectAsState()
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(appUpdateState) {
+        if (appUpdateState is AppUpdateState.UpdateAvailable && !viewModel.wasUpdatePromptDismissed) {
+            showUpdateDialog = true
+        }
+    }
+
+    if (showUpdateDialog) {
+        val update = appUpdateState as? AppUpdateState.UpdateAvailable
+        if (update != null) {
+            AlertDialog(
+                onDismissRequest = { 
+                    showUpdateDialog = false
+                    viewModel.dismissUpdatePrompt()
+                },
+                title = { Text("App Update Available") },
+                text = {
+                    Column {
+                        Text("A new version of RvxMobile is available.", fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Version: ${update.versionTag}")
+                        Text("Release: ${update.releaseName}")
+                        Text("Size: ${viewModel.formatSize(update.sizeBytes)}")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Would you like to download and install the update now?")
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showUpdateDialog = false
+                            val apkInfo = ApkInfo(
+                                label = "RvxMobile Update - ${update.versionTag}",
+                                url = update.downloadUrl,
+                                isBeta = false,
+                                isLite = false,
+                                isOutdated = false
+                            )
+                            
+                            // Check Post Notifications Permission on Android 13+ (API 33+)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                pendingApksToDownload = listOf(Pair("RvxMobile Update", apkInfo))
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                    !context.packageManager.canRequestPackageInstalls()
+                                ) {
+                                    pendingApksToDownload = listOf(Pair("RvxMobile Update", apkInfo))
+                                    showPermissionDialog = true
+                                } else {
+                                    viewModel.enqueueDownload(context, "RvxMobile Update - ${update.versionTag}", apkInfo)
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Downloading update...")
+                                    }
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Download & Update")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showUpdateDialog = false
+                            viewModel.dismissUpdatePrompt()
+                        }
+                    ) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
     }
 }
