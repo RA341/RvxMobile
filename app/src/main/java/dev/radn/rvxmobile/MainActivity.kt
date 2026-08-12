@@ -57,8 +57,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.radn.rvxmobile.data.ApkInfo
+import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.ReadmeViewModel
+import dev.radn.rvxmobile.ui.ReleasesState
 import dev.radn.rvxmobile.ui.UiState
 import dev.radn.rvxmobile.ui.navigation.Screen
 import dev.radn.rvxmobile.ui.screens.DashboardScreen
@@ -87,6 +89,9 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     val downloadQueue by viewModel.downloadQueue.collectAsState()
     val pinnedVariants by viewModel.pinnedVariants.collectAsState()
+    val pinnedReleases by viewModel.pinnedReleases.collectAsState()
+    val releasesState by viewModel.releasesState.collectAsState()
+    val lastInstalled by viewModel.lastInstalled.collectAsState()
     
     var currentScreen by remember { mutableStateOf(Screen.DASHBOARD) }
     var searchQuery by remember { mutableStateOf("") }
@@ -122,9 +127,20 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     )
 
     // Listen to ViewModel install events
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, downloadQueue) {
         viewModel.installEvent.collect { file ->
             viewModel.installApk(context, file)
+            val task = downloadQueue.find { it.apkUrl.substringAfterLast("/") == file.name }
+            if (task != null) {
+                viewModel.recordInstallation(task.apkUrl)
+            }
+        }
+    }
+
+    // Sync download queue with cache when screen changes to DOWNLOADS or SETTINGS
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.DOWNLOADS || currentScreen == Screen.SETTINGS) {
+            viewModel.syncQueueWithCache()
         }
     }
 
@@ -211,6 +227,9 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                             DashboardScreen(
                                 apps = state.apps,
                                 rawMarkdown = state.rawMarkdown,
+                                releasesState = releasesState,
+                                downloadQueue = downloadQueue,
+                                pinnedReleases = pinnedReleases,
                                 searchQuery = searchQuery,
                                 onSearchQueryChange = { searchQuery = it },
                                 deviceAbi = viewModel.deviceAbi,
@@ -241,14 +260,54 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 },
                                 onPinClick = { app, patcher, apk ->
                                     viewModel.togglePin(app.name, patcher.name, apk)
-                                }
+                                },
+                                onDownloadReleaseClick = { asset ->
+                                     val apkInfo = ApkInfo(
+                                         label = asset.name.substringBeforeLast(".apk"),
+                                         url = asset.browserDownloadUrl,
+                                         isBeta = asset.name.contains("beta", ignoreCase = true),
+                                         isLite = asset.name.contains("lite", ignoreCase = true),
+                                         isOutdated = false
+                                     )
+                                     viewModel.enqueueDownload(context, asset.name, apkInfo)
+                                     coroutineScope.launch {
+                                         snackbarHostState.showSnackbar("Added ${asset.name} to download queue")
+                                     }
+                                 },
+                                 onInstallReleaseClick = { task ->
+                                     viewModel.installCachedFile(context, task)
+                                 },
+                                 onRemoveReleaseClick = { task ->
+                                     viewModel.removeDownloadTask(task)
+                                 },
+                                 onRetryReleaseClick = { task ->
+                                     val apkInfo = ApkInfo(
+                                         label = task.label,
+                                         url = task.apkUrl,
+                                         isBeta = task.label.contains("beta", ignoreCase = true),
+                                         isLite = task.label.contains("lite", ignoreCase = true),
+                                         isOutdated = false
+                                     )
+                                     viewModel.enqueueDownload(context, task.label, apkInfo)
+                                 },
+                                 onPinReleaseClick = { asset ->
+                                     viewModel.togglePinRelease(asset)
+                                 },
+                                 onRefreshReleasesClick = {
+                                     viewModel.loadReleases()
+                                 }
                             )
                         }
                         Screen.PINNED -> {
                             PinnedScreen(
                                 pinnedVariants = pinnedVariants,
+                                releasesState = releasesState,
+                                lastInstalled = lastInstalled,
                                 apps = state.apps,
                                 deviceAbi = viewModel.deviceAbi,
+                                onRefreshClick = {
+                                    viewModel.loadData()
+                                },
                                 onDownloadClick = { appName, patcherName, apk ->
                                     pendingApksToDownload = listOf(Pair(patcherName, apk))
                                     
@@ -318,6 +377,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 onInstallClick = { task ->
                                     viewModel.installCachedFile(context, task)
                                 },
+                                lastInstalled = lastInstalled,
                                 onClearClick = {
                                     viewModel.clearQueueHistory()
                                 },
@@ -327,7 +387,31 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                      coroutineScope.launch {
                                          snackbarHostState.showSnackbar("Added ${task.label} to download queue")
                                      }
-                                }
+                                 },
+                                 onRemoveClick = { task ->
+                                     viewModel.removeDownloadTask(task)
+                                 },
+                                 releasesState = releasesState,
+                                 pinnedReleases = pinnedReleases,
+                                 onDownloadPinnedReleaseClick = { pinnedAsset ->
+                                     val apkInfo = ApkInfo(
+                                         label = pinnedAsset.name.substringBeforeLast(".apk"),
+                                         url = pinnedAsset.browserDownloadUrl,
+                                         isBeta = pinnedAsset.name.contains("beta", ignoreCase = true),
+                                         isLite = pinnedAsset.name.contains("lite", ignoreCase = true),
+                                         isOutdated = false
+                                     )
+                                     viewModel.enqueueDownload(context, pinnedAsset.name, apkInfo)
+                                     coroutineScope.launch {
+                                         snackbarHostState.showSnackbar("Added ${pinnedAsset.name} to download queue")
+                                     }
+                                 },
+                                 onPinReleaseAssetClick = { pinnedAsset ->
+                                     viewModel.togglePinReleaseAsset(pinnedAsset)
+                                 },
+                                 onRefreshReleasesClick = {
+                                     viewModel.loadReleases()
+                                 }
                             )
                         }
                         Screen.SETTINGS -> {

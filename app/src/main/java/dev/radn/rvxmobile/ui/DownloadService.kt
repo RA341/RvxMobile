@@ -123,6 +123,10 @@ class DownloadService : Service() {
                     var totalBytesRead = 0L
 
                     while (input.read(buffer).also { bytesRead = it } != -1) {
+                        val taskExists = DownloadQueueRepository.getQueue().any { it.apkUrl == task.apkUrl }
+                        if (!taskExists) {
+                            throw DownloadCancelledException()
+                        }
                         output.write(buffer, 0, bytesRead)
                         totalBytesRead += bytesRead
                         if (contentLength > 0) {
@@ -145,6 +149,12 @@ class DownloadService : Service() {
 
             // Post completed install notification
             showCompletedNotification(task.label, apkFile)
+        } catch (e: DownloadCancelledException) {
+            val dir = File(cacheDir, "apks")
+            val apkFile = File(dir, task.apkUrl.substringAfterLast("/"))
+            if (apkFile.exists()) {
+                apkFile.delete()
+            }
         } catch (e: Exception) {
             DownloadQueueRepository.updateStatus(task.apkUrl, DownloadStatus.FAILED, 0f, e.localizedMessage ?: "Download failed")
             showFailedNotification(task.label, e.localizedMessage ?: "Connection error")
@@ -208,3 +218,5 @@ class DownloadService : Service() {
         notificationManager.notify(COMPLETED_NOTIFICATION_ID_OFFSET + label.hashCode(), notification)
     }
 }
+
+private class DownloadCancelledException : Exception("Download cancelled by user")

@@ -27,9 +27,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,15 +47,93 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.DownloadTask
+import dev.radn.rvxmobile.ui.ReleasesState
 
 @Composable
 fun DownloadsScreen(
+    // Queue State & Actions
     downloadQueue: List<DownloadTask>,
     onInstallClick: (DownloadTask) -> Unit,
     onClearClick: () -> Unit,
-    onRetryClick: (DownloadTask) -> Unit
+    onRetryClick: (DownloadTask) -> Unit,
+    onRemoveClick: (DownloadTask) -> Unit,
+    lastInstalled: Map<String, Long>,
+    
+    // Pinned Releases & Live Check State
+    releasesState: ReleasesState,
+    pinnedReleases: List<PinnedReleaseAsset>,
+    onDownloadPinnedReleaseClick: (PinnedReleaseAsset) -> Unit,
+    onPinReleaseAssetClick: (PinnedReleaseAsset) -> Unit,
+    onRefreshReleasesClick: () -> Unit
+) {
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Queue", "Pinned")
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(
+            selectedTabIndex = selectedTabIndex,
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index },
+                    text = {
+                        Text(
+                            text = title,
+                            fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 14.sp
+                        )
+                    }
+                )
+            }
+        }
+
+        when (selectedTabIndex) {
+            0 -> {
+                QueueView(
+                    downloadQueue = downloadQueue,
+                    onInstallClick = onInstallClick,
+                    onClearClick = onClearClick,
+                    onRetryClick = onRetryClick,
+                    onRemoveClick = onRemoveClick
+                )
+            }
+            1 -> {
+                PinnedReleasesScreen(
+                    pinnedReleases = pinnedReleases,
+                    downloadQueue = downloadQueue,
+                    releasesState = releasesState,
+                    lastInstalled = lastInstalled,
+                    onDownloadClick = onDownloadPinnedReleaseClick,
+                    onInstallClick = onInstallClick,
+                    onRemoveClick = onRemoveClick,
+                    onRetryClick = onRetryClick,
+                    onPinClick = onPinReleaseAssetClick,
+                    onRefreshClick = onRefreshReleasesClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueView(
+    downloadQueue: List<DownloadTask>,
+    onInstallClick: (DownloadTask) -> Unit,
+    onClearClick: () -> Unit,
+    onRetryClick: (DownloadTask) -> Unit,
+    onRemoveClick: (DownloadTask) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -122,7 +208,8 @@ fun DownloadsScreen(
                     DownloadTaskCard(
                         task = task,
                         onInstallClick = onInstallClick,
-                        onRetryClick = onRetryClick
+                        onRetryClick = onRetryClick,
+                        onRemoveClick = onRemoveClick
                     )
                 }
             }
@@ -131,10 +218,11 @@ fun DownloadsScreen(
 }
 
 @Composable
-fun DownloadTaskCard(
+private fun DownloadTaskCard(
     task: DownloadTask,
     onInstallClick: (DownloadTask) -> Unit,
-    onRetryClick: (DownloadTask) -> Unit
+    onRetryClick: (DownloadTask) -> Unit,
+    onRemoveClick: (DownloadTask) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -181,7 +269,7 @@ fun DownloadTaskCard(
                 ) {
                     Text(
                         text = when (task.status) {
-                            DownloadStatus.QUEUED -> "Queued"
+                            DownloadStatus.QUEUED -> "Queue"
                             DownloadStatus.DOWNLOADING -> "Downloading"
                             DownloadStatus.COMPLETED -> "Completed"
                             DownloadStatus.FAILED -> "Failed"
@@ -209,9 +297,9 @@ fun DownloadTaskCard(
                         LinearProgressIndicator(
                             progress = { task.progress },
                             modifier = Modifier
-                                .weight(1f)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                                    .weight(1f)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -220,6 +308,18 @@ fun DownloadTaskCard(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = { onRemoveClick(task) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Cancel download",
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
                 DownloadStatus.FAILED -> {
@@ -234,12 +334,26 @@ fun DownloadTaskCard(
                             fontSize = 11.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
-                            onClick = { onRetryClick(task) },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            modifier = Modifier.height(28.dp)
-                        ) {
-                            Text("Retry", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { onRemoveClick(task) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete task",
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TextButton(
+                                onClick = { onRetryClick(task) },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("Retry", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -255,22 +369,54 @@ fun DownloadTaskCard(
                             fontSize = 11.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        Button(
-                            onClick = { onInstallClick(task) },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                            modifier = Modifier.height(28.dp),
-                            shape = androidx.compose.foundation.shape.CircleShape
-                        ) {
-                            Text("Install", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { onRemoveClick(task) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete download",
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = { onInstallClick(task) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(28.dp),
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            ) {
+                                Text("Install", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
                 DownloadStatus.QUEUED -> {
-                    Text(
-                        text = "Waiting for other downloads to finish...",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        fontSize = 11.sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Waiting for other downloads to finish...",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            fontSize = 11.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { onRemoveClick(task) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Remove queued task",
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

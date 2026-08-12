@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,16 +44,27 @@ import androidx.compose.ui.unit.sp
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.PinnedVariant
+import dev.radn.rvxmobile.data.ReleaseAsset
+import dev.radn.rvxmobile.ui.ReleasesState
+import java.util.Locale
+import java.util.TimeZone
 
 @Composable
 fun PinnedScreen(
     pinnedVariants: List<PinnedVariant>,
+    releasesState: ReleasesState,
+    lastInstalled: Map<String, Long>,
     apps: List<AppInfo>,
     deviceAbi: String,
+    onRefreshClick: () -> Unit,
     onDownloadClick: (String, String, ApkInfo) -> Unit,
     onDownloadAllClick: (List<Pair<String, ApkInfo>>) -> Unit,
     onUnpinClick: (PinnedVariant) -> Unit
 ) {
+    val releaseAssets = remember(releasesState) {
+        (releasesState as? ReleasesState.Success)?.release?.assets ?: emptyList()
+    }
+
     if (pinnedVariants.isEmpty()) {
         Box(
             modifier = Modifier
@@ -127,7 +139,7 @@ fun PinnedScreen(
                                 modifier = Modifier.padding(bottom = 4.dp)
                             )
                             Text(
-                                text = "Quick access to your pinned releases. They sync with the latest README live feed automatically.",
+                                text = "Quick access to your pinned releases.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 lineHeight = 16.sp
@@ -147,24 +159,32 @@ fun PinnedScreen(
                             }
                         }
 
-                        if (availablePins.isNotEmpty()) {
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Button(
-                                onClick = { onDownloadAllClick(availablePins) },
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                modifier = Modifier.height(36.dp),
-                                shape = CircleShape,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onRefreshClick) {
                                 Icon(
-                                    imageVector = Icons.Default.Download,
-                                    contentDescription = "Install All",
-                                    modifier = Modifier.size(16.dp)
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Check for updates"
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Install All", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            if (availablePins.isNotEmpty()) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = { onDownloadAllClick(availablePins) },
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                    modifier = Modifier.height(36.dp),
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "Install All",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Install All", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -179,6 +199,18 @@ fun PinnedScreen(
                     it.label.trim() == pinned.apkLabel.trim() && it.isBeta == pinned.isBeta 
                 } ?: matchedPatcher?.apks?.find { 
                     it.label.trim() == pinned.apkLabel.trim() 
+                }
+
+                val matchedAsset = remember(liveApk, releaseAssets) {
+                    liveApk?.let { apk ->
+                        releaseAssets.find { resolveUrl(apk.url) == it.browserDownloadUrl }
+                    }
+                }
+
+                val lastInstalledTime = remember(liveApk, lastInstalled) {
+                    liveApk?.let { apk ->
+                        lastInstalled[resolveUrl(apk.url)] ?: 0L
+                    } ?: 0L
                 }
 
                 val isRecommended = remember(pinned.apkLabel, deviceAbi) {
@@ -267,13 +299,33 @@ fun PinnedScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Variant: ${pinned.apkLabel}",
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                                if (matchedAsset != null) {
+                                    Text(
+                                        text = "Size: ${formatSize(matchedAsset.size)} | Downloads: ${matchedAsset.downloadCount}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Updated: ${formatDate(matchedAsset.updatedAt)}",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
+                                }
+                                if (lastInstalledTime > 0L) {
+                                    Text(
+                                        text = "Last Installed: ${formatLastInstalled(lastInstalledTime)}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 // Badges
                                 Row(
@@ -300,7 +352,6 @@ fun PinnedScreen(
                                     } else {
                                         // Stable/Beta Badge
                                         val badgeColor = if (pinned.isBeta) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
-                                        val badgeOnColor = if (pinned.isBeta) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onPrimary
                                         Box(
                                             modifier = Modifier
                                                 .background(
@@ -358,6 +409,8 @@ fun PinnedScreen(
                                 }
                             }
 
+                            Spacer(modifier = Modifier.width(8.dp))
+
                             // Download action
                             Button(
                                 onClick = {
@@ -391,5 +444,46 @@ fun PinnedScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
+    }
+}
+
+private fun resolveUrl(url: String): String {
+    return if (url.startsWith("http")) {
+        url
+    } else {
+        val cleanPath = url.substringAfter("releases/download/")
+        "https://github.com/FiorenMas/Revanced-And-Revanced-Extended-Non-Root/releases/download/$cleanPath"
+    }
+}
+
+private fun formatSize(bytes: Long): String {
+    return when {
+        bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.2f MB", bytes.toDouble() / (1024 * 1024))
+        bytes >= 1024 -> String.format(Locale.getDefault(), "%.2f KB", bytes.toDouble() / 1024)
+        else -> "$bytes B"
+    }
+}
+
+private fun formatDate(isoDate: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val date = inputFormat.parse(isoDate) ?: return isoDate
+        val outputFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        outputFormat.format(date)
+    } catch (e: Exception) {
+        isoDate
+    }
+}
+
+private fun formatLastInstalled(timestamp: Long): String {
+    if (timestamp <= 0L) return ""
+    return try {
+        val date = java.util.Date(timestamp)
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        format.format(date)
+    } catch (e: Exception) {
+        ""
     }
 }

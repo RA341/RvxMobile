@@ -40,4 +40,24 @@ object DownloadQueueRepository {
             it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.DOWNLOADING
         }
     }
+
+    fun removeTask(apkUrl: String) {
+        _downloadQueue.value = _downloadQueue.value.filterNot { it.apkUrl == apkUrl }
+    }
+
+    fun syncQueueWithCache(cacheDir: File) {
+        val current = _downloadQueue.value
+        val updated = current.filter { task ->
+            if (task.status == DownloadStatus.COMPLETED) {
+                val filename = task.apkUrl.substringAfterLast("/")
+                val file = File(cacheDir, filename)
+                file.exists()
+            } else {
+                true
+            }
+        }
+        if (updated.size != current.size) {
+            _downloadQueue.value = updated
+        }
+    }
 }

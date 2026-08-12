@@ -2,6 +2,9 @@
 
 RVxMobile is an Android app to make the installing prebuilt apk releases easier.
 
+then everytime i intall it shoyld store a last insalled ref, so when i refresh it checks the apk releases and it its mode time is
+after intall time show a upodate avaible buttonar
+
 ## Latest release
 
 - https://github.com/RA341/RvxMobile/releases/latest

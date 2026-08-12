@@ -42,3 +42,44 @@ data class PinnedVariant(
     }
 }
 
+data class ReleaseAsset(
+    val name: String,
+    val size: Long,
+    val downloadCount: Int,
+    val browserDownloadUrl: String,
+    val updatedAt: String
+)
+
+data class ReleaseInfo(
+    val id: Long,
+    val tagName: String,
+    val name: String,
+    val publishedAt: String,
+    val htmlUrl: String,
+    val assets: List<ReleaseAsset>
+)
+
+data class PinnedReleaseAsset(
+    val name: String,
+    val size: Long,
+    val downloadCount: Int,
+    val browserDownloadUrl: String,
+    val updatedAt: String
+) {
+    fun toSerializedString(): String = "$name|$size|$downloadCount|$browserDownloadUrl|$updatedAt"
+    
+    companion object {
+        fun fromSerializedString(str: String): PinnedReleaseAsset? {
+            val parts = str.split("|")
+            if (parts.size < 5) return null
+            return PinnedReleaseAsset(
+                name = parts[0],
+                size = parts[1].toLongOrNull() ?: 0L,
+                downloadCount = parts[2].toIntOrNull() ?: 0,
+                browserDownloadUrl = parts[3],
+                updatedAt = parts[4]
+            )
+        }
+    }
+}
+
