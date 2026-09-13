@@ -149,7 +149,10 @@ fun PinnedReleasesScreen(
                     val hasUpdate = latestLiveAsset != null && isNewer(latestLiveAsset.updatedAt, asset.updatedAt)
                     
                     // Get last installed time
-                    val lastInstalledTime = lastInstalled[asset.browserDownloadUrl] ?: 0L
+                    val lastInstalledTime = maxOf(
+                        lastInstalled[asset.browserDownloadUrl] ?: 0L,
+                        latestLiveAsset?.let { lastInstalled[it.browserDownloadUrl] } ?: 0L
+                    )
 
                     PinnedReleaseAssetCard(
                         asset = asset,
@@ -310,6 +313,14 @@ fun PinnedReleaseAssetCard(
             } else {
                 asset
             }
+
+            val remoteTimeMillis = remember(asset.updatedAt, latestLiveAsset?.updatedAt) {
+                maxOf(
+                    parseIsoDateToMillis(asset.updatedAt),
+                    parseIsoDateToMillis(latestLiveAsset?.updatedAt ?: "")
+                )
+            }
+            val isUpdateEnabled = remoteTimeMillis > 0L && remoteTimeMillis > lastInstalledTime
 
             if (task == null) {
                 Row(
@@ -484,13 +495,27 @@ fun PinnedReleaseAssetCard(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = { onInstallClick(task) },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(28.dp),
-                                    shape = androidx.compose.foundation.shape.CircleShape
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text("Install", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Button(
+                                        onClick = { onInstallClick(task) },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(28.dp),
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    ) {
+                                        Text("Install", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(
+                                        onClick = { onDownloadClick(assetToDownload) },
+                                        enabled = isUpdateEnabled,
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(28.dp),
+                                        shape = androidx.compose.foundation.shape.CircleShape
+                                    ) {
+                                        Text("Update", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -652,3 +677,23 @@ private fun getFullLastInstalled(timestamp: Long): String {
         ""
     }
 }
+
+private fun parseIsoDateToMillis(isoDate: String): Long {
+    if (isoDate.isBlank()) return 0L
+    return try {
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        format.parse(isoDate)?.time ?: 0L
+    } catch (e: Exception) {
+        try {
+            val format2 = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            format2.parse(isoDate)?.time ?: 0L
+        } catch (e2: Exception) {
+            0L
+        }
+    }
+}
+

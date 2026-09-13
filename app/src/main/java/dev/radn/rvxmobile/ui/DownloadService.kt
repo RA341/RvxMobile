@@ -48,7 +48,7 @@ class DownloadService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val initialNotification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("RvxMobile Installer")
+            .setContentTitle("RvxMobile")
             .setContentText("Initializing download queue...")
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setPriority(NotificationCompat.PRIORITY_LOW)

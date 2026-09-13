@@ -454,7 +454,6 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 onInstallClick = { task ->
                                     viewModel.installCachedFile(context, task)
                                 },
-                                lastInstalled = lastInstalled,
                                 onClearClick = {
                                     viewModel.clearQueueHistory()
                                 },
@@ -467,27 +466,6 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                  },
                                  onRemoveClick = { task ->
                                      viewModel.removeDownloadTask(task)
-                                 },
-                                 releasesState = releasesState,
-                                 pinnedReleases = pinnedReleases,
-                                 onDownloadPinnedReleaseClick = { pinnedAsset ->
-                                     val apkInfo = ApkInfo(
-                                         label = pinnedAsset.name.substringBeforeLast(".apk"),
-                                         url = pinnedAsset.browserDownloadUrl,
-                                         isBeta = pinnedAsset.name.contains("beta", ignoreCase = true),
-                                         isLite = pinnedAsset.name.contains("lite", ignoreCase = true),
-                                         isOutdated = false
-                                     )
-                                     viewModel.enqueueDownload(context, pinnedAsset.name, apkInfo)
-                                     coroutineScope.launch {
-                                         snackbarHostState.showSnackbar("Added ${pinnedAsset.name} to download queue")
-                                     }
-                                 },
-                                 onPinReleaseAssetClick = { pinnedAsset ->
-                                     viewModel.togglePinReleaseAsset(pinnedAsset)
-                                 },
-                                 onRefreshReleasesClick = {
-                                     viewModel.loadReleases()
                                  }
                             )
                         }

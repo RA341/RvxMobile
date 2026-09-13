@@ -23,21 +23,13 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SecondaryTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,89 +39,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.radn.rvxmobile.data.PinnedReleaseAsset
 import dev.radn.rvxmobile.ui.DownloadStatus
 import dev.radn.rvxmobile.ui.DownloadTask
-import dev.radn.rvxmobile.ui.ReleasesState
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
-    // Queue State & Actions
-    downloadQueue: List<DownloadTask>,
-    onInstallClick: (DownloadTask) -> Unit,
-    onClearClick: () -> Unit,
-    onRetryClick: (DownloadTask) -> Unit,
-    onRemoveClick: (DownloadTask) -> Unit,
-    lastInstalled: Map<String, Long>,
-    
-    // Pinned Releases & Live Check State
-    releasesState: ReleasesState,
-    pinnedReleases: List<PinnedReleaseAsset>,
-    onDownloadPinnedReleaseClick: (PinnedReleaseAsset) -> Unit,
-    onPinReleaseAssetClick: (PinnedReleaseAsset) -> Unit,
-    onRefreshReleasesClick: () -> Unit
-) {
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Queue", "Pinned")
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        SecondaryTabRow(
-            selectedTabIndex = selectedTabIndex,
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            indicator = {
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(selectedTabIndex),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTabIndex == index,
-                    onClick = { selectedTabIndex = index },
-                    text = {
-                        Text(
-                            text = title,
-                            fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 14.sp
-                        )
-                    }
-                )
-            }
-        }
-
-        when (selectedTabIndex) {
-            0 -> {
-                QueueView(
-                    downloadQueue = downloadQueue,
-                    onInstallClick = onInstallClick,
-                    onClearClick = onClearClick,
-                    onRetryClick = onRetryClick,
-                    onRemoveClick = onRemoveClick
-                )
-            }
-            1 -> {
-                PinnedReleasesScreen(
-                    pinnedReleases = pinnedReleases,
-                    downloadQueue = downloadQueue,
-                    releasesState = releasesState,
-                    lastInstalled = lastInstalled,
-                    onDownloadClick = onDownloadPinnedReleaseClick,
-                    onInstallClick = onInstallClick,
-                    onRemoveClick = onRemoveClick,
-                    onRetryClick = onRetryClick,
-                    onPinClick = onPinReleaseAssetClick,
-                    onRefreshClick = onRefreshReleasesClick
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun QueueView(
     downloadQueue: List<DownloadTask>,
     onInstallClick: (DownloadTask) -> Unit,
     onClearClick: () -> Unit,
@@ -298,9 +212,9 @@ private fun DownloadTaskCard(
                         LinearProgressIndicator(
                             progress = { task.progress },
                             modifier = Modifier
-                                    .weight(1f)
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
+                                .weight(1f)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
