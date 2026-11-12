@@ -72,23 +72,40 @@ import dev.radn.rvxmobile.ui.screens.DownloadsScreen
 import dev.radn.rvxmobile.ui.screens.PinnedScreen
 import dev.radn.rvxmobile.ui.screens.SettingsScreen
 import dev.radn.rvxmobile.ui.theme.RvxMobileTheme
+import dev.radn.rvxmobile.updates.PinnedUpdateWorker
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private var pinnedUpdateRequest by mutableStateOf(0L)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleUpdateIntent(intent)
         enableEdgeToEdge()
         setContent {
             RvxMobileTheme {
-                MainAppScreen()
+                MainAppScreen(pinnedUpdateRequest = pinnedUpdateRequest)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleUpdateIntent(intent)
+    }
+
+    private fun handleUpdateIntent(intent: Intent) {
+        if (intent.getBooleanExtra(PinnedUpdateWorker.OPEN_PINNED, false)) {
+            pinnedUpdateRequest = System.nanoTime()
+            intent.removeExtra(PinnedUpdateWorker.OPEN_PINNED)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
+fun MainAppScreen(viewModel: ReadmeViewModel = viewModel(), pinnedUpdateRequest: Long = 0L) {
     val context = LocalContext.current
     
     // Clean up notifications for packages that are already installed when app starts/resumes
@@ -166,6 +183,14 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
     val lastInstalled by viewModel.lastInstalled.collectAsState()
     
     var currentScreen by remember { mutableStateOf(Screen.DASHBOARD) }
+    LaunchedEffect(pinnedUpdateRequest) {
+        if (pinnedUpdateRequest != 0L) {
+            currentScreen = Screen.PINNED
+            viewModel.loadData()
+            viewModel.loadReleases()
+            PinnedUpdateWorker.clearNotification(context)
+        }
+    }
     var searchQuery by remember { mutableStateOf("") }
     
     var showPermissionDialog by remember { mutableStateOf(false) }
