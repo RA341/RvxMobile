@@ -49,6 +49,7 @@ import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.PinnedVariant
 import dev.radn.rvxmobile.data.hasPinnedUpdate
+import dev.radn.rvxmobile.data.resolvePinnedUrl
 import dev.radn.rvxmobile.ui.ReleasesState
 import java.util.Locale
 import java.util.TimeZone
@@ -490,12 +491,7 @@ fun PinnedScreen(
 }
 
 private fun resolveUrl(url: String): String {
-    return if (url.startsWith("http")) {
-        url
-    } else {
-        val cleanPath = url.substringAfter("releases/download/")
-        "https://github.com/FiorenMas/Revanced-And-Revanced-Extended-Non-Root/releases/download/$cleanPath"
-    }
+    return resolvePinnedUrl(url)
 }
 
 private fun formatSize(bytes: Long): String {

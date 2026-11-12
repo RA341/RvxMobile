@@ -11,6 +11,12 @@ RVxMobile is an Android app to make the installing prebuilt apk releases easier.
 If you want to see other releases or older versions, view all releases here:
 https://github.com/RA341/RvxMobile/releases
 
+## Pinned app update checks
+
+Background checks run once a day by default. In **Settings → Pinned app updates**, choose hourly, every 6 hours, daily, weekly, or Off. Checks require a network connection; Android may delay them to save battery.
+
+Enable notifications in the same section to receive alerts for newer releases of pinned variants installed through RvxMobile. Each release is announced once. Tap the notification to open Pinned and choose Update. Background checks do not download or install APKs automatically.
+
 ## Build from source
 
 Prerequisites: JDK 11+, Android SDK, and Gradle.
