@@ -6,10 +6,10 @@ import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.radn.rvxmobile.BuildConfig
+import dev.radn.rvxmobile.InstallApkActivity
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.DownloadQueueRepository
@@ -18,6 +18,9 @@ import dev.radn.rvxmobile.data.PinnedVariant
 import dev.radn.rvxmobile.data.ReadmeParser
 import dev.radn.rvxmobile.data.ReleaseAsset
 import dev.radn.rvxmobile.data.ReleaseInfo
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -26,9 +29,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 sealed interface UiState {
     object Loading : UiState
@@ -287,14 +287,7 @@ class ReadmeViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun installApk(context: Context, file: File) {
-        val authority = "${context.packageName}.fileprovider"
-        val uri = FileProvider.getUriForFile(context, authority, file)
-        
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-        }
-        context.startActivity(intent)
+        context.startActivity(InstallApkActivity.createIntent(context, file))
     }
 
     fun clearQueueHistory() {
