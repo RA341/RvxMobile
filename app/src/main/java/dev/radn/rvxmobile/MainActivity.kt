@@ -384,6 +384,7 @@ fun MainAppScreen(viewModel: ReadmeViewModel = viewModel()) {
                                 deviceAbi = viewModel.deviceAbi,
                                 onRefreshClick = {
                                     viewModel.loadData()
+                                    viewModel.loadReleases()
                                 },
                                 onDownloadClick = { appName, patcherName, apk ->
                                     pendingApksToDownload = listOf(Pair(patcherName, apk))

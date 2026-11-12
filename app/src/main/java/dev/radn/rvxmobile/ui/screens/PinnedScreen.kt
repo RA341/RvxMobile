@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import dev.radn.rvxmobile.data.ApkInfo
 import dev.radn.rvxmobile.data.AppInfo
 import dev.radn.rvxmobile.data.PinnedVariant
+import dev.radn.rvxmobile.data.hasPinnedUpdate
 import dev.radn.rvxmobile.ui.ReleasesState
 import java.util.Locale
 import java.util.TimeZone
@@ -228,12 +229,21 @@ fun PinnedScreen(
 
                 val isOutdated = liveApk?.isOutdated ?: false
                 val isLite = liveApk?.isLite ?: false
+                val hasUpdate = remember(matchedAsset, lastInstalledTime) {
+                    hasPinnedUpdate(matchedAsset?.updatedAt, lastInstalledTime)
+                }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(28.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    border = BorderStroke(
+                        if (hasUpdate) 2.dp else 1.dp,
+                        if (hasUpdate) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.08f)
+                    ),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (hasUpdate) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                        else MaterialTheme.colorScheme.surface
+                    )
                 ) {
                     Column(
                         modifier = Modifier
@@ -296,6 +306,19 @@ fun PinnedScreen(
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
+
+                        if (hasUpdate) {
+                            Text(
+                                text = "Update available",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
 
                         // Variant Info & Status
                         Row(
@@ -447,12 +470,12 @@ fun PinnedScreen(
                                 )
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Download,
-                                    contentDescription = "Download",
+                                    imageVector = if (hasUpdate) Icons.Default.Refresh else Icons.Default.Download,
+                                    contentDescription = null,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Download", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(if (hasUpdate) "Update" else "Download", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
