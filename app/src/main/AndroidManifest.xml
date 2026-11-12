@@ -41,6 +41,19 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".InstallApkActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <receiver
+            android:name=".InstalledApkReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".ui.DownloadService"
             android:foregroundServiceType="dataSync"

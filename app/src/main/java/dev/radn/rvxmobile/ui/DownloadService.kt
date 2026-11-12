@@ -10,8 +10,11 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.content.FileProvider
+import dev.radn.rvxmobile.InstallApkActivity
 import dev.radn.rvxmobile.data.DownloadQueueRepository
+import dev.radn.rvxmobile.data.InstalledApkCleanup
+import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,8 +24,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.File
-import java.io.FileOutputStream
 
 class DownloadService : Service() {
     private val client = OkHttpClient()
@@ -151,11 +152,14 @@ class DownloadService : Service() {
             apkFile.setLastModified(System.currentTimeMillis())
             DownloadQueueRepository.updateStatus(task.apkUrl, DownloadStatus.COMPLETED, 1.0f)
             
+            InstalledApkCleanup.track(this, apkFile)
+
+            // Post before launching the installer so cleanup cannot race a late notification.
+            showCompletedNotification(task.label, apkFile)
+
             // Emit install event for foreground UI
             DownloadQueueRepository.installEvents.emit(apkFile)
 
-            // Post completed install notification
-            showCompletedNotification(task.label, apkFile)
         } catch (e: DownloadCancelledException) {
             val dir = File(cacheDir, "apks")
             val apkFile = File(dir, task.apkUrl.substringAfterLast("/"))
@@ -182,13 +186,7 @@ class DownloadService : Service() {
     }
 
     private fun showCompletedNotification(label: String, file: File) {
-        val authority = "$packageName.fileprovider"
-        val uri = FileProvider.getUriForFile(this, authority, file)
-
-        val installIntent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-        }
+        val installIntent = InstallApkActivity.createIntent(this, file)
 
         val pendingIntentFlags =
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
