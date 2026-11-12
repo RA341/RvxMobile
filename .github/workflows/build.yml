@@ -2,10 +2,7 @@ name: Android CI & Release
 
 on:
   push:
-    branches: [ "main", "master", "develop" ]
-  pull_request:
-    branches: [ "main", "master", "develop" ]
-  workflow_dispatch: # Allows manual trigger
+    branches: [ "main" ]
 
 permissions:
   contents: write # Needed to create releases and upload assets
@@ -55,13 +52,11 @@ jobs:
           path: app-release.apk
 
       - name: Set Release Information
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         run: |
           echo "RELEASE_TAG=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
           echo "RELEASE_NAME=Release $(date +'%Y-%m-%d %H:%M')" >> $GITHUB_ENV
 
       - name: Create GitHub Release
-        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
